@@ -1,0 +1,42 @@
+# Сборка APK для Order Manager в GitHub Actions (Linux)
+name: Build APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:  # Ручной запуск: Actions → Build APK → Run workflow
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y -q \
+            python3-pip python3-dev \
+            build-essential openjdk-17-jdk unzip zlib1g-dev \
+            libncurses5-dev libgdm-dev libsqlite3-dev libssl-dev libffi-dev \
+            libffi-dev autoconf libtool pkg-config
+
+      - name: Install Buildozer and Cython
+        run: |
+          pip install --upgrade pip
+          pip install buildozer Cython
+
+      - name: Build APK
+        run: buildozer -v android debug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ordermanager-apk
+          path: bin/*.apk
