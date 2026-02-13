@@ -1,4 +1,4 @@
-# Сборка APK для Order Manager (через Docker-образ Buildozer)
+# Сборка APK для Order Manager (без Docker — избегаем ошибки chown/user)
 name: Build APK
 
 on:
@@ -14,16 +14,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build with Buildozer
-        uses: ArtemSBulgakov/buildozer-action@v1
-        id: buildozer
+      - name: Build APK
+        uses: digreatbrian/buildozer-action@v2
         with:
-          workdir: .
-          buildozer_version: "1.2.0"
-          command: buildozer -v android debug
+          python-version: "3.10"
+          work-dir: .
+          buildozer-cmd: buildozer -v android debug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: ordermanager-apk
-          path: ${{ steps.buildozer.outputs.filename }}
+          path: bin/*.apk
