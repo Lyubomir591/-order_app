@@ -40,23 +40,34 @@ def get_table_width():
     """Ширина таблицы для горизонтального скролла: больше экрана на всех устройствах."""
     return max(int(Window.width * 1.85), 700)
 
-# === ЦВЕТОВАЯ СХЕМА ===
+# === ЦВЕТОВАЯ СХЕМА (в духе современного банковского UI) ===
 COLORS = {
     'WHITE': (1.0, 1.0, 1.0, 1),
-    'LIGHT_BG': (0.985, 0.99, 1.0, 1),
-    'DARK_BLUE': (0.10, 0.40, 0.80, 1),
-    'DARK_TEXT': (0.08, 0.08, 0.08, 1),
+    'LIGHT_BG': (0.97, 0.98, 1.0, 1),
+    'DARK_BLUE': (0.08, 0.35, 0.65, 1),
+    'DARK_TEXT': (0.12, 0.12, 0.14, 1),
     'BLACK': (0.0, 0.0, 0.0, 1),
-    'MEDIUM_GREY': (0.42, 0.42, 0.42, 1),
-    'LIGHT_GREY': (0.93, 0.93, 0.93, 1),
-    'RED': (0.82, 0.15, 0.15, 1),
-    'GREEN': (0.15, 0.60, 0.20, 1),
-    'AMBER': (0.98, 0.62, 0.12, 1),
-    'PURPLE': (0.52, 0.22, 0.70, 1),
-    'ORANGE': (0.95, 0.50, 0.15, 1),
-    'TEAL': (0.0, 0.58, 0.58, 1),
-    'PINK': (0.88, 0.22, 0.52, 1),
+    'MEDIUM_GREY': (0.45, 0.45, 0.5, 1),
+    'LIGHT_GREY': (0.92, 0.93, 0.95, 1),
+    'RED': (0.85, 0.20, 0.22, 1),
+    'GREEN': (0.18, 0.62, 0.35, 1),
+    'AMBER': (0.95, 0.55, 0.12, 1),
+    'PURPLE': (0.48, 0.25, 0.72, 1),
+    'ORANGE': (0.95, 0.48, 0.18, 1),
+    'TEAL': (0.0, 0.55, 0.58, 1),
+    'PINK': (0.82, 0.22, 0.48, 1),
+    # Плитки меню (насыщенные, но не кислотные)
+    'TILE_BLUE': (0.12, 0.42, 0.78, 1),
+    'TILE_GREEN': (0.20, 0.62, 0.38, 1),
+    'TILE_TEAL': (0.0, 0.52, 0.55, 1),
+    'TILE_VIOLET': (0.50, 0.28, 0.72, 1),
+    'TILE_AMBER': (0.95, 0.58, 0.15, 1),
+    'TILE_PINK': (0.85, 0.25, 0.48, 1),
 }
+# Единые высоты кнопок (dp)
+BTN_TILE_H = 118
+BTN_ACTION_H = 52
+BTN_BACK_H = 48
 
 # ============================================================================
 # МОДУЛЬ: БИЗНЕС-ЛОГИКА (ВСЕ РАСЧЕТЫ СОХРАНЕНЫ БЕЗ ИЗМЕНЕНИЙ)
@@ -437,16 +448,63 @@ class UIComponents:
 
     @staticmethod
     def create_back_button(target_screen: str = 'profile', text: str = 'Назад') -> Button:
-        """Унифицированная кнопка "Назад" без эмодзи"""
+        """Кнопка «Назад» — единый стиль, фиксированная высота."""
         btn = Button(
-            text=f'← {text}',
-            size_hint_y=0.08,
-            background_color=COLORS['LIGHT_BG'],
-            color=COLORS['DARK_TEXT'],
-            font_size='18sp',
-            bold=True
+            text=f'←  {text}',
+            size_hint_y=None,
+            height=BTN_BACK_H,
+            background_color=COLORS['WHITE'],
+            color=COLORS['DARK_BLUE'],
+            font_size='17sp',
+            bold=True,
         )
         btn.bind(on_press=lambda x: setattr(App.get_running_app().root, 'current', target_screen))
+        return btn
+
+    @staticmethod
+    def create_menu_tile(icon: str, title: str, screen: str, color: tuple) -> Button:
+        """Плитка меню: крупная, с иконкой сверху и подписью (как в банковских приложениях)."""
+        btn = Button(
+            text=f'{icon}\n{title}',
+            size_hint_y=None,
+            height=BTN_TILE_H,
+            background_color=color,
+            color=(1, 1, 1, 1),
+            font_size='14sp',
+            bold=True,
+            halign='center',
+            valign='middle',
+        )
+        btn.bind(size=btn.setter('text_size'))
+        btn.bind(on_press=lambda x, s=screen: setattr(App.get_running_app().root, 'current', s))
+        return btn
+
+    @staticmethod
+    def create_primary_button(text: str, height: int = BTN_ACTION_H) -> Button:
+        """Основная действие — одна высота по всему приложению."""
+        btn = Button(
+            text=text,
+            size_hint_y=None,
+            height=height,
+            background_color=COLORS['DARK_BLUE'],
+            color=(1, 1, 1, 1),
+            font_size='18sp',
+            bold=True,
+        )
+        return btn
+
+    @staticmethod
+    def create_secondary_button(text: str, height: int = BTN_ACTION_H) -> Button:
+        """Второстепенная кнопка (белая/светлая)."""
+        btn = Button(
+            text=text,
+            size_hint_y=None,
+            height=height,
+            background_color=COLORS['LIGHT_GREY'],
+            color=COLORS['DARK_TEXT'],
+            font_size='17sp',
+            bold=True,
+        )
         return btn
 
 # ============================================================================
@@ -491,9 +549,9 @@ class HomeScreen(BaseScreen):
         layout = BoxLayout(orientation='vertical', padding=15, spacing=15)
         
         title = Label(
-            text='Система управления заказами',
-            size_hint_y=0.15,
-            font_size='27sp',
+            text='Управление заказами',
+            size_hint_y=0.12,
+            font_size='26sp',
             bold=True,
             color=COLORS['DARK_BLUE'],
             halign='center'
@@ -502,12 +560,11 @@ class HomeScreen(BaseScreen):
         layout.add_widget(title)
 
         subtitle = Label(
-            text='Управление товарами, складом и заказами',
+            text='Товары, склад и заказы в одном приложении',
             size_hint_y=0.06,
-            font_size='16sp',
+            font_size='15sp',
             color=COLORS['MEDIUM_GREY'],
             halign='center',
-            italic=True
         )
         subtitle.bind(size=subtitle.setter('text_size'))
         layout.add_widget(subtitle)
@@ -518,24 +575,18 @@ class HomeScreen(BaseScreen):
         scroll.add_widget(self.profiles_list)
         layout.add_widget(scroll)
 
-        btn_create = Button(
-            text='Создать новый профиль',
-            size_hint_y=0.13,
-            background_color=COLORS['DARK_BLUE'],
-            color=(1, 1, 1, 1),
-            font_size='20sp',
-            bold=True
-        )
+        btn_create = UIComponents.create_primary_button('Создать новый профиль', height=56)
         btn_create.bind(on_press=self.show_create_profile)
         layout.add_widget(btn_create)
 
         btn_exit = Button(
             text='Выйти из приложения',
-            size_hint_y=0.09,
+            size_hint_y=None,
+            height=BTN_ACTION_H,
             background_color=COLORS['RED'],
             color=(1, 1, 1, 1),
-            font_size='18sp',
-            bold=True
+            font_size='17sp',
+            bold=True,
         )
         btn_exit.bind(on_press=lambda x: App.get_running_app().stop())
         layout.add_widget(btn_exit)
@@ -577,30 +628,29 @@ class HomeScreen(BaseScreen):
             profile_container = BoxLayout(
                 orientation='horizontal',
                 size_hint_y=None,
-                height=78,
+                height=64,
                 spacing=10
             )
-            
             btn = Button(
                 text=profile_name,
-                size_hint_x=0.85,
-                background_color=COLORS['LIGHT_BG'],
+                size_hint_x=0.82,
+                background_color=COLORS['WHITE'],
                 color=COLORS['DARK_BLUE'],
-                font_size='20sp',
-                bold=True
+                font_size='18sp',
+                bold=True,
             )
             btn.bind(on_press=lambda instance, name=profile_name: self.select_profile(name))
-            
             del_btn = Button(
                 text='Удалить',
-                size_hint_x=0.15,
+                size_hint_x=0.18,
+                size_hint_y=None,
+                height=44,
                 background_color=COLORS['RED'],
                 color=(1, 1, 1, 1),
-                font_size='16sp',
-                bold=True
+                font_size='14sp',
+                bold=True,
             )
             del_btn.bind(on_press=lambda instance, name=profile_name: self.confirm_delete_profile(name))
-            
             profile_container.add_widget(btn)
             profile_container.add_widget(del_btn)
             self.profiles_list.add_widget(profile_container)
@@ -679,22 +729,26 @@ class HomeScreen(BaseScreen):
         hint_label.bind(size=hint_label.setter('text_size'))
         content.add_widget(hint_label)
 
-        buttons = BoxLayout(spacing=22, size_hint_y=None, height=78)
+        buttons = BoxLayout(spacing=14, size_hint_y=None, height=BTN_ACTION_H + 4)
         cancel_btn = Button(
             text='Отмена',
-            background_color=COLORS['RED'],
+            size_hint_x=0.45,
+            size_hint_y=None,
+            height=BTN_ACTION_H,
+            background_color=COLORS['MEDIUM_GREY'],
             color=(1, 1, 1, 1),
-            font_size='20sp',
+            font_size='17sp',
             bold=True,
-            size_hint_x=0.45
         )
         ok_btn = Button(
             text='Создать',
+            size_hint_x=0.55,
+            size_hint_y=None,
+            height=BTN_ACTION_H,
             background_color=COLORS['GREEN'],
             color=(1, 1, 1, 1),
-            font_size='20sp',
+            font_size='17sp',
             bold=True,
-            size_hint_x=0.45
         )
 
         popup = Popup(
@@ -748,58 +802,40 @@ class ProfileScreen(BaseScreen):
     def build_ui(self):
         layout = BoxLayout(orientation='vertical', padding=12, spacing=12)
         
-        header = BoxLayout(size_hint_y=0.12, spacing=10)
+        header = BoxLayout(orientation='horizontal', size_hint_y=None, height=BTN_BACK_H + 14, spacing=8)
         back_btn = UIComponents.create_back_button('home')
         header.add_widget(back_btn)
-        
         self.title_label = Label(
             text='',
             size_hint_x=0.7,
-            font_size='22sp',
+            font_size='20sp',
             bold=True,
             color=COLORS['DARK_BLUE'],
-            halign='left'
+            halign='left',
+            valign='middle'
         )
         self.title_label.bind(size=self.title_label.setter('text_size'))
         header.add_widget(self.title_label)
         layout.add_widget(header)
 
-        grid = GridLayout(cols=2, spacing=15, size_hint_y=0.82)
-        buttons_config = [
-            ("Каталог товаров", "products", COLORS['DARK_BLUE']),
-            ("Добавить товар", "add_product", COLORS['GREEN']),
-            ("Склад", "warehouse", COLORS['TEAL']),
-            ("Создать заказ", "create_order", COLORS['PURPLE']),
-            ("Анализ продаж", "sales_analysis", COLORS['AMBER']),
-            ("История заказов", "order_history", COLORS['PINK']),
+        grid = GridLayout(cols=2, spacing=12, size_hint_y=None, padding=[0, 8])
+        grid.bind(minimum_height=grid.setter('height'))
+        tiles_config = [
+            ("📦", "Каталог\nтоваров", "products", COLORS['TILE_BLUE']),
+            ("➕", "Добавить\nтовар", "add_product", COLORS['TILE_GREEN']),
+            ("📥", "Склад", "warehouse", COLORS['TILE_TEAL']),
+            ("📝", "Создать\nзаказ", "create_order", COLORS['TILE_VIOLET']),
+            ("📊", "Анализ\nпродаж", "sales_analysis", COLORS['TILE_AMBER']),
+            ("📋", "История\nзаказов", "order_history", COLORS['TILE_PINK']),
         ]
-        
-        for text, screen, color in buttons_config:
-            btn = Button(
-                text=text,
-                background_color=color,
-                color=(1, 1, 1, 1),
-                font_size='17sp',
-                bold=True,
-                size_hint_y=None,
-                height=105
-            )
-            btn.bind(on_press=lambda x, s=screen: setattr(self.manager, 'current', s))
+        for icon, title, screen, color in tiles_config:
+            btn = UIComponents.create_menu_tile(icon, title, screen, color)
             grid.add_widget(btn)
-
-        logout_btn = Button(
-            text='Выход из профиля',
-            background_color=COLORS['RED'],
-            color=(1, 1, 1, 1),
-            font_size='17sp',
-            bold=True,
-            size_hint_y=None,
-            height=105
-        )
-        logout_btn.bind(on_press=lambda x: setattr(self.manager, 'current', 'home'))
+        logout_btn = UIComponents.create_menu_tile("🚪", "Выход из\nпрофиля", "home", COLORS['RED'])
         grid.add_widget(logout_btn)
-        
-        layout.add_widget(grid)
+        scroll_grid = ScrollView(size_hint_y=0.82)
+        scroll_grid.add_widget(grid)
+        layout.add_widget(scroll_grid)
         self.add_widget(layout)
 
     def on_enter(self):
@@ -2511,28 +2547,15 @@ class SalesAnalysisScreen(BaseScreen):
         
         layout.add_widget(filters_layout)
 
-        # Кнопки фильтрации
-        btn_layout = BoxLayout(orientation='horizontal', size_hint_y=0.10, spacing=15)
-        
-        apply_btn = Button(
-            text='Применить',
-            background_color=COLORS['GREEN'],
-            color=(1, 1, 1, 1),
-            font_size='18sp',
-            bold=True
-        )
-        
-        clear_btn = Button(
-            text='Сбросить',
-            background_color=COLORS['AMBER'],
-            color=(1, 1, 1, 1),
-            font_size='18sp',
-            bold=True
-        )
-        
+        # Кнопки фильтрации — единый размер
+        btn_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=BTN_ACTION_H + 8, spacing=12)
+        apply_btn = UIComponents.create_primary_button('Применить')
+        apply_btn.background_color = COLORS['GREEN']
+        clear_btn = UIComponents.create_secondary_button('Сбросить')
+        clear_btn.background_color = COLORS['AMBER']
+        clear_btn.color = (1, 1, 1, 1)
         apply_btn.bind(on_press=self.load_analysis)
         clear_btn.bind(on_press=self.clear_filters)
-        
         btn_layout.add_widget(apply_btn)
         btn_layout.add_widget(clear_btn)
         layout.add_widget(btn_layout)
