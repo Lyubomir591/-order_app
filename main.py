@@ -26,8 +26,19 @@ from kivy.graphics import Color, Rectangle, Line
 from kivy.core.window import Window
 from kivy.clock import Clock
 
-# === НАСТРОЙКИ ОКНА ===
-Window.size = (360, 640)
+# === НАСТРОЙКИ ОКНА (адаптивность) ===
+# На Android не меняем размер — полноэкранный режим; на ПК — удобное окно
+try:
+    from kivy.utils import platform
+    if platform != 'android':
+        Window.size = (360, 640)
+except Exception:
+    Window.size = (360, 640)
+
+
+def get_table_width():
+    """Ширина таблицы для горизонтального скролла: больше экрана на всех устройствах."""
+    return max(int(Window.width * 1.85), 700)
 
 # === ЦВЕТОВАЯ СХЕМА ===
 COLORS = {
@@ -2390,15 +2401,17 @@ class CreateOrderScreen(BaseScreen):
 class SalesAnalysisScreen(BaseScreen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self._table_w = get_table_width()
         self.build_ui()
 
     def build_ui(self):
-        layout = BoxLayout(orientation='vertical', padding=12, spacing=10)
+        self._table_w = get_table_width()
+        layout = BoxLayout(orientation='vertical', padding=[12, 12, 12, 16], spacing=8)
         layout.add_widget(UIComponents.create_back_button('profile'))
         
         title = Label(
             text='Анализ продаж',
-            size_hint_y=0.085,
+            size_hint_y=0.08,
             font_size='26sp',
             bold=True,
             color=COLORS['DARK_BLUE'],
@@ -2409,7 +2422,7 @@ class SalesAnalysisScreen(BaseScreen):
 
         hint_label = Label(
             text='Выберите период и товар для анализа',
-            size_hint_y=0.06,
+            size_hint_y=0.05,
             font_size='17sp',
             color=COLORS['MEDIUM_GREY'],
             italic=True,
@@ -2418,7 +2431,7 @@ class SalesAnalysisScreen(BaseScreen):
         hint_label.bind(size=hint_label.setter('text_size'))
         layout.add_widget(hint_label)
 
-        filters_layout = BoxLayout(orientation='vertical', size_hint_y=0.26, spacing=12)
+        filters_layout = BoxLayout(orientation='vertical', size_hint_y=0.24, spacing=12)
         
         # Дата от
         date_from_layout = BoxLayout(orientation='vertical', size_hint_y=None, height=70)
@@ -2524,11 +2537,11 @@ class SalesAnalysisScreen(BaseScreen):
         btn_layout.add_widget(clear_btn)
         layout.add_widget(btn_layout)
 
-        # Результаты анализа
+        # Результаты анализа (таблица приподнята, горизонтальный скролл)
         results_title = Label(
-            text='Результаты анализа',
-            size_hint_y=0.065,
-            font_size='20sp',
+            text='Результаты анализа (свайп влево/вправо — все столбцы)',
+            size_hint_y=0.055,
+            font_size='18sp',
             bold=True,
             color=COLORS['DARK_BLUE'],
             halign='center'
@@ -2537,17 +2550,18 @@ class SalesAnalysisScreen(BaseScreen):
         layout.add_widget(results_title)
 
         scroll = ScrollView(
-            size_hint_y=0.5,
+            size_hint_y=0.54,
             do_scroll_x=True,
             do_scroll_y=True,
-            bar_width=12,
+            bar_width=10,
             scroll_type=['bars', 'content'],
             bar_color=COLORS['DARK_BLUE'][:3] + (0.85,),
             bar_inactive_color=COLORS['LIGHT_GREY'][:3] + (0.65,),
         )
         self.analysis_scroll = scroll
-        self.analysis_container = BoxLayout(orientation='vertical', size_hint_x=None, width=1150)
-        self.analysis_list = GridLayout(cols=1, spacing=10, size_hint_y=None, size_hint_x=None, width=1150)
+        w = self._table_w
+        self.analysis_container = BoxLayout(orientation='vertical', size_hint_x=None, width=w)
+        self.analysis_list = GridLayout(cols=1, spacing=10, size_hint_y=None, size_hint_x=None, width=w)
         self.analysis_list.bind(minimum_height=self.analysis_list.setter('height'))
         self.analysis_container.add_widget(self.analysis_list)
         scroll.add_widget(self.analysis_container)
@@ -2592,7 +2606,8 @@ class SalesAnalysisScreen(BaseScreen):
 
     def load_analysis(self, instance):
         self.analysis_list.clear_widgets()
-        self.analysis_container.width = 1150
+        self._table_w = get_table_width()
+        self.analysis_container.width = self._table_w
         
         date_from, error = Validators.validate_date(self.date_from_input.text)
         if error:
@@ -2647,7 +2662,7 @@ class SalesAnalysisScreen(BaseScreen):
             ("Затраты", 0.16)
         ]
         
-        header_card = UIComponents.create_table_header(header_labels, width=1150)
+        header_card = UIComponents.create_table_header(header_labels, width=self._table_w)
         self.analysis_list.add_widget(header_card)
         
         # Проверка на отсутствие данных
@@ -2698,7 +2713,7 @@ class SalesAnalysisScreen(BaseScreen):
                     padding=[13, 10],
                     spacing=8,
                     size_hint_x=None,
-                    width=1150
+                    width=self._table_w
                 )
                 
                 with card.canvas.before:
@@ -2756,7 +2771,7 @@ class SalesAnalysisScreen(BaseScreen):
             padding=[13, 10],
             spacing=8,
             size_hint_x=None,
-            width=1150
+            width=self._table_w
         )
         
         with total_card.canvas.before:
@@ -2801,15 +2816,17 @@ class SalesAnalysisScreen(BaseScreen):
 class OrderHistoryScreen(BaseScreen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self._table_w = get_table_width()
         self.build_ui()
 
     def build_ui(self):
-        layout = BoxLayout(orientation='vertical', padding=12, spacing=10)
+        self._table_w = get_table_width()
+        layout = BoxLayout(orientation='vertical', padding=[12, 12, 12, 16], spacing=8)
         layout.add_widget(UIComponents.create_back_button('profile'))
         
         title = Label(
             text='История заказов',
-            size_hint_y=0.08,
+            size_hint_y=0.07,
             font_size='25sp',
             bold=True,
             color=COLORS['PINK'],
@@ -2818,16 +2835,16 @@ class OrderHistoryScreen(BaseScreen):
         title.bind(size=title.setter('text_size'))
         layout.add_widget(title)
 
-        scroll = ScrollView(size_hint_y=0.28)
+        scroll = ScrollView(size_hint_y=0.22)
         self.history_list = GridLayout(cols=1, spacing=10, size_hint_y=None)
         self.history_list.bind(minimum_height=self.history_list.setter('height'))
         scroll.add_widget(self.history_list)
         layout.add_widget(scroll)
 
         stats_title = Label(
-            text='Дневная статистика',
-            size_hint_y=0.06,
-            font_size='21sp',
+            text='Дневная статистика (свайп влево/вправо — все столбцы)',
+            size_hint_y=0.05,
+            font_size='18sp',
             bold=True,
             color=COLORS['DARK_BLUE'],
             halign='center'
@@ -2836,17 +2853,18 @@ class OrderHistoryScreen(BaseScreen):
         layout.add_widget(stats_title)
 
         stats_scroll = ScrollView(
-            size_hint_y=0.5,
+            size_hint_y=0.58,
             do_scroll_x=True,
             do_scroll_y=True,
-            bar_width=12,
+            bar_width=10,
             scroll_type=['bars', 'content'],
             bar_color=COLORS['DARK_BLUE'][:3] + (0.85,),
             bar_inactive_color=COLORS['LIGHT_GREY'][:3] + (0.65,),
         )
         self.stats_scroll = stats_scroll
-        self.stats_container = BoxLayout(orientation='vertical', size_hint_x=None, width=1000)
-        self.stats_list = GridLayout(cols=1, spacing=7, size_hint_y=None, size_hint_x=None, width=1000)
+        w = self._table_w
+        self.stats_container = BoxLayout(orientation='vertical', size_hint_x=None, width=w)
+        self.stats_list = GridLayout(cols=1, spacing=7, size_hint_y=None, size_hint_x=None, width=w)
         self.stats_list.bind(minimum_height=self.stats_list.setter('height'))
         self.stats_container.add_widget(self.stats_list)
         stats_scroll.add_widget(self.stats_container)
@@ -2919,7 +2937,8 @@ class OrderHistoryScreen(BaseScreen):
     def load_daily_stats(self):
         """Загружает дневную статистику из профиля с КОРРЕКТНЫМ расчётом суммы доставки"""
         self.stats_list.clear_widgets()
-        self.stats_container.width = 1000
+        self._table_w = get_table_width()
+        self.stats_container.width = self._table_w
         
         profile_data = self.get_profile_data()
         daily_stats = profile_data.get("daily_stats", {})
@@ -2940,7 +2959,7 @@ class OrderHistoryScreen(BaseScreen):
             padding=[9, 0],
             spacing=6,
             size_hint_x=None,
-            width=1000
+            width=self._table_w
         )
         
         with header_card.canvas.before:
@@ -2976,7 +2995,7 @@ class OrderHistoryScreen(BaseScreen):
                 padding=[9, 0],
                 spacing=6,
                 size_hint_x=None,
-                width=1000
+                width=self._table_w
             )
             
             with card.canvas.before:
