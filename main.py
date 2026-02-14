@@ -10,6 +10,8 @@ import shutil
 from datetime import datetime, date, timedelta
 from collections import defaultdict
 from typing import Dict, List, Optional, Any, Tuple
+from kivy.metrics import dp, sp
+from kivy.utils import platform
 
 # === ИМПОРТЫ KIVY ===
 from kivy.app import App
@@ -24,21 +26,14 @@ from kivy.uix.popup import Popup
 from kivy.uix.dropdown import DropDown
 from kivy.graphics import Color, Rectangle, Line
 from kivy.core.window import Window
-from kivy.clock import Clock
 
 # === НАСТРОЙКИ ОКНА (адаптивность) ===
 # На Android не меняем размер — полноэкранный режим; на ПК — удобное окно
 try:
-    from kivy.utils import platform
     if platform != 'android':
-        Window.size = (360, 640)
+        Window.size = (dp(360), dp(640))
 except Exception:
-    Window.size = (360, 640)
-
-
-def get_table_width():
-    """Ширина таблицы для горизонтального скролла: больше экрана на всех устройствах."""
-    return max(int(Window.width * 1.85), 700)
+    pass
 
 # === ЦВЕТОВАЯ СХЕМА (в духе современного банковского UI) ===
 COLORS = {
@@ -64,16 +59,18 @@ COLORS = {
     'TILE_AMBER': (0.95, 0.58, 0.15, 1),
     'TILE_PINK': (0.85, 0.25, 0.48, 1),
 }
+
 # Единые высоты кнопок (dp)
-BTN_TILE_H = 118
-BTN_ACTION_H = 52
-BTN_BACK_H = 48
+BTN_TILE_H = dp(118)
+BTN_ACTION_H = dp(52)
+BTN_BACK_H = dp(48)
 
 # ============================================================================
 # МОДУЛЬ: БИЗНЕС-ЛОГИКА (ВСЕ РАСЧЕТЫ СОХРАНЕНЫ БЕЗ ИЗМЕНЕНИЙ)
 # ============================================================================
 class BusinessLogic:
     """Центральный модуль бизнес-логики — все расчеты оригинальные"""
+    
     @staticmethod
     def calculate_percent_expenses(cost_price: float, profit: float) -> float:
         """Оригинальная формула: %Затрат = (Затраты / (Затраты + Прибыль)) × 100%"""
@@ -81,14 +78,14 @@ class BusinessLogic:
         if expenses + profit > 0:
             return (expenses / (expenses + profit)) * 100
         return 0.0
-
+    
     @staticmethod
     def calculate_percent_profit(cost_price: float, profit: float) -> float:
         """Оригинальная формула: %Прибыли = (Прибыль / Стоимость) × 100%"""
         if cost_price > 0:
             return (profit / cost_price) * 100
         return 0.0
-
+    
     @staticmethod
     def calculate_delivery_cost(weight: float) -> int:
         """Оригинальная логика доставки:
@@ -108,12 +105,13 @@ class BusinessLogic:
 # ============================================================================
 class DataManager:
     """Управление данными с использованием user_data_dir для совместимости с Android"""
+    
     def __init__(self):
         self._cache: Dict[str, Any] = {}
         self._last_save = datetime.now()
         self._profiles: Optional[Dict] = None
         self._init_directories()
-
+    
     def _init_directories(self):
         """Создание директорий при старте с использованием user_data_dir"""
         from kivy.app import App
@@ -126,7 +124,7 @@ class DataManager:
         if not os.path.exists(self.profiles_file) or os.path.getsize(self.profiles_file) == 0:
             self._save_safe({}, self.profiles_file)
             print(f"[OK] Создан файл профилей: {self.profiles_file}")
- 
+    
     def _create_backup(self, filepath: str) -> str:
         """Создание резервной копии перед записью"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -135,15 +133,15 @@ class DataManager:
         try:
             if os.path.exists(filepath):
                 shutil.copy2(filepath, backup_path)
-            # Удаление старых бэков (>7 дней)
+            # Удаление старых бэкапов (>7 дней)
             self._cleanup_old_backups()
             return backup_path
         except Exception as e:
             print(f"[!] Предупреждение: не удалось создать бэкап: {e}")
             return ""
-
+    
     def _cleanup_old_backups(self, days: int = 7):
-        """Очистка бэков старше N дней"""
+        """Очистка бэкапов старше N дней"""
         cutoff = datetime.now() - timedelta(days=days)
         for fname in os.listdir(self.backup_dir):
             if fname.endswith('.bak'):
@@ -153,9 +151,9 @@ class DataManager:
                     if mtime < cutoff:
                         os.remove(path)
                         print(f"[X] Удален старый бэкап: {fname}")
-                except:
+                except Exception:
                     pass
-
+    
     def _save_safe(self, data: Dict, filepath: str):
         """Безопасная запись с резервным копированием"""
         try:
@@ -166,7 +164,7 @@ class DataManager:
         except Exception as e:
             print(f"[!] Ошибка сохранения {filepath}: {e}")
             raise
-
+    
     def _load_safe(self, filepath: str) -> Dict:
         """Безопасная загрузка с восстановлением из бэкапа при ошибке"""
         try:
@@ -183,7 +181,7 @@ class DataManager:
             print(f"[!] JSON ошибка в {filepath}: {e}")
             # Попытка восстановления из последнего бэкапа
             backups = sorted(
-                [f for f in os.listdir(self.backup_dir) if f.startswith(os.path.basename(filepath))],
+                [f for f in os.listdir(self.backup_dir) if f.startswith(os.path.basename(filepath))], 
                 reverse=True
             )
             if backups:
@@ -192,24 +190,24 @@ class DataManager:
                 try:
                     with open(backup_path, "r", encoding="utf-8") as f:
                         return json.load(f)
-                except:
+                except Exception:
                     return {}
             return {}
         except Exception as e:
             print(f"[!] Ошибка загрузки {filepath}: {e}")
             return {}
-
+    
     def get_profiles(self) -> Dict:
         """Получение профилей с кэшированием"""
         if self._profiles is None:
             self._profiles = self._load_safe(self.profiles_file)
         return self._profiles
-
+    
     def save_profiles(self, profiles: Dict):
         """Сохранение профилей с обновлением кэша"""
         self._save_safe(profiles, self.profiles_file)
         self._profiles = profiles.copy()
-
+    
     def get_profile_data(self, profile_name: str) -> Dict:
         """Получение данных профиля с инициализацией структуры по умолчанию"""
         profiles = self.get_profiles()
@@ -223,7 +221,7 @@ class DataManager:
             }
             self.save_profiles(profiles)
         return profiles[profile_name]
-
+    
     def update_profile_data(self, profile_name: str, data: Dict):
         """Обновление данных профиля"""
         profiles = self.get_profiles()
@@ -235,6 +233,7 @@ class DataManager:
 # ============================================================================
 class Validators:
     """Универсальные валидаторы для всех полей ввода"""
+    
     @staticmethod
     def validate_positive_float(text: str, field_name: str = "Значение") -> Tuple[Optional[float], Optional[str]]:
         """Валидация положительного числа с поддержкой запятой/точки"""
@@ -245,7 +244,7 @@ class Validators:
             return value, None
         except ValueError:
             return None, f"{field_name}: введите корректное число"
-
+    
     @staticmethod
     def validate_non_empty(text: str, field_name: str = "Поле") -> Tuple[Optional[str], Optional[str]]:
         """Валидация непустой строки"""
@@ -253,7 +252,7 @@ class Validators:
         if not value:
             return None, f"{field_name} не может быть пустым"
         return value, None
-
+    
     @staticmethod
     def validate_date(text: str) -> Tuple[Optional[date], Optional[str]]:
         """Валидация даты в формате ГГГГ-ММ-ДД"""
@@ -267,10 +266,11 @@ class Validators:
 # ============================================================================
 class UIComponents:
     """Универсальные UI компоненты для повторного использования без эмодзи"""
+    
     @staticmethod
     def create_popup(title: str, message: str, callback=None) -> Popup:
         """Унифицированный попап с текстовыми метками"""
-        content = BoxLayout(orientation='vertical', padding=20, spacing=20)
+        content = BoxLayout(orientation='vertical', padding=dp(20), spacing=dp(20))
         
         # Определение префикса по контексту
         prefix = ""
@@ -285,10 +285,10 @@ class UIComponents:
         title_label = Label(
             text=f'{prefix}{title}',
             color=COLORS['DARK_BLUE'],
-            font_size='21sp',
+            font_size=sp(21),
             bold=True,
             size_hint_y=None,
-            height=45,
+            height=dp(45),
             halign='center'
         )
         title_label.bind(size=title_label.setter('text_size'))
@@ -298,22 +298,22 @@ class UIComponents:
         label = Label(
             text=message,
             color=COLORS['DARK_TEXT'],
-            font_size='18sp',
+            font_size=sp(18),
             halign='center',
             valign='middle',
             size_hint_y=None,
-            height=130
+            height=dp(130)
         )
         label.bind(size=label.setter('text_size'))
         content.add_widget(label)
 
         # Кнопка OK
-        btn_layout = BoxLayout(size_hint_y=None, height=65, spacing=15)
+        btn_layout = BoxLayout(size_hint_y=None, height=dp(65), spacing=dp(15))
         ok_btn = Button(
             text='OK',
             background_color=COLORS['DARK_BLUE'],
             color=(1, 1, 1, 1),
-            font_size='19sp',
+            font_size=sp(19),
             bold=True,
             size_hint_x=0.7
         )
@@ -337,18 +337,18 @@ class UIComponents:
         ok_btn.bind(on_press=close_popup)
         popup.open()
         return popup
-
+    
     @staticmethod
     def create_confirmation_popup(title: str, message: str, yes_callback, no_callback=None) -> Popup:
         """Диалог подтверждения без эмодзи"""
-        content = BoxLayout(orientation='vertical', padding=20, spacing=20)
+        content = BoxLayout(orientation='vertical', padding=dp(20), spacing=dp(20))
         title_label = Label(
             text=f'[Подтверждение] {title}',
             color=COLORS['AMBER'],
-            font_size='21sp',
+            font_size=sp(21),
             bold=True,
             size_hint_y=None,
-            height=45,
+            height=dp(45),
             halign='center'
         )
         title_label.bind(size=title_label.setter('text_size'))
@@ -357,20 +357,20 @@ class UIComponents:
         label = Label(
             text=message,
             color=COLORS['DARK_TEXT'],
-            font_size='18sp',
+            font_size=sp(18),
             halign='center',
             size_hint_y=None,
-            height=140
+            height=dp(140)
         )
         label.bind(size=label.setter('text_size'))
         content.add_widget(label)
 
-        btn_layout = BoxLayout(size_hint_y=None, height=70, spacing=20)
+        btn_layout = BoxLayout(size_hint_y=None, height=dp(70), spacing=dp(20))
         no_btn = Button(
             text='Отмена',
             background_color=COLORS['RED'],
             color=(1, 1, 1, 1),
-            font_size='19sp',
+            font_size=sp(19),
             bold=True,
             size_hint_x=0.45
         )
@@ -378,7 +378,7 @@ class UIComponents:
             text='Подтвердить',
             background_color=COLORS['GREEN'],
             color=(1, 1, 1, 1),
-            font_size='19sp',
+            font_size=sp(19),
             bold=True,
             size_hint_x=0.45
         )
@@ -408,16 +408,16 @@ class UIComponents:
         content.add_widget(btn_layout)
         popup.open()
         return popup
-
+    
     @staticmethod
     def create_table_header(labels: List[tuple], width: int = 1150) -> BoxLayout:
         """Создание заголовка таблицы с синим фоном"""
         header = BoxLayout(
             orientation='horizontal',
             size_hint_y=None,
-            height=54,
-            padding=[12, 10],
-            spacing=7,
+            height=dp(54),
+            padding=[dp(12), dp(10)],
+            spacing=dp(7),
             size_hint_x=None,
             width=width
         )
@@ -434,7 +434,7 @@ class UIComponents:
         for text, width_ratio in labels:
             label = Label(
                 text=text,
-                font_size='17sp',
+                font_size=sp(17),
                 bold=True,
                 color=(1, 1, 1, 1),
                 size_hint_x=width_ratio,
@@ -445,7 +445,7 @@ class UIComponents:
             header.add_widget(label)
 
         return header
-
+    
     @staticmethod
     def create_back_button(target_screen: str = 'profile', text: str = 'Назад') -> Button:
         """Кнопка «Назад» — единый стиль, фиксированная высота."""
@@ -455,12 +455,12 @@ class UIComponents:
             height=BTN_BACK_H,
             background_color=COLORS['WHITE'],
             color=COLORS['DARK_BLUE'],
-            font_size='17sp',
+            font_size=sp(17),
             bold=True,
         )
         btn.bind(on_press=lambda x: setattr(App.get_running_app().root, 'current', target_screen))
         return btn
-
+    
     @staticmethod
     def create_menu_tile(icon: str, title: str, screen: str, color: tuple) -> Button:
         """Плитка меню: крупная, с иконкой сверху и подписью (как в банковских приложениях)."""
@@ -470,7 +470,7 @@ class UIComponents:
             height=BTN_TILE_H,
             background_color=color,
             color=(1, 1, 1, 1),
-            font_size='14sp',
+            font_size=sp(14),
             bold=True,
             halign='center',
             valign='middle',
@@ -478,7 +478,7 @@ class UIComponents:
         btn.bind(size=btn.setter('text_size'))
         btn.bind(on_press=lambda x, s=screen: setattr(App.get_running_app().root, 'current', s))
         return btn
-
+    
     @staticmethod
     def create_primary_button(text: str, height: int = BTN_ACTION_H) -> Button:
         """Основная действие — одна высота по всему приложению."""
@@ -488,11 +488,11 @@ class UIComponents:
             height=height,
             background_color=COLORS['DARK_BLUE'],
             color=(1, 1, 1, 1),
-            font_size='18sp',
+            font_size=sp(18),
             bold=True,
         )
         return btn
-
+    
     @staticmethod
     def create_secondary_button(text: str, height: int = BTN_ACTION_H) -> Button:
         """Второстепенная кнопка (белая/светлая)."""
@@ -502,7 +502,7 @@ class UIComponents:
             height=height,
             background_color=COLORS['LIGHT_GREY'],
             color=COLORS['DARK_TEXT'],
-            font_size='17sp',
+            font_size=sp(17),
             bold=True,
         )
         return btn
@@ -512,26 +512,27 @@ class UIComponents:
 # ============================================================================
 class BaseScreen(Screen):
     """Базовый класс для всех экранов с общими методами"""
+    
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.data_manager = App.get_running_app().data_manager
         self.business_logic = App.get_running_app().business_logic
-
+    
     def show_popup(self, title: str, message: str, callback=None):
         UIComponents.create_popup(title, message, callback)
-
+    
     def show_confirmation(self, title: str, message: str, yes_callback, no_callback=None):
         UIComponents.create_confirmation_popup(title, message, yes_callback, no_callback)
-
+    
     def get_current_profile(self) -> Optional[str]:
         return App.get_running_app().current_profile
-
+    
     def get_profile_data(self) -> Dict:
         profile_name = self.get_current_profile()
         if not profile_name:
             return {}
         return self.data_manager.get_profile_data(profile_name)
-
+    
     def save_profile_data(self, data: Dict):
         profile_name = self.get_current_profile()
         if profile_name:
@@ -544,14 +545,14 @@ class HomeScreen(BaseScreen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.build_ui()
-
+    
     def build_ui(self):
-        layout = BoxLayout(orientation='vertical', padding=15, spacing=15)
+        layout = BoxLayout(orientation='vertical', padding=dp(15), spacing=dp(15))
         
         title = Label(
             text='Управление заказами',
             size_hint_y=0.12,
-            font_size='26sp',
+            font_size=sp(26),
             bold=True,
             color=COLORS['DARK_BLUE'],
             halign='center'
@@ -562,7 +563,7 @@ class HomeScreen(BaseScreen):
         subtitle = Label(
             text='Товары, склад и заказы в одном приложении',
             size_hint_y=0.06,
-            font_size='15sp',
+            font_size=sp(15),
             color=COLORS['MEDIUM_GREY'],
             halign='center',
         )
@@ -570,12 +571,12 @@ class HomeScreen(BaseScreen):
         layout.add_widget(subtitle)
 
         scroll = ScrollView(size_hint_y=0.52)
-        self.profiles_list = GridLayout(cols=1, spacing=12, size_hint_y=None)
+        self.profiles_list = GridLayout(cols=1, spacing=dp(12), size_hint_y=None)
         self.profiles_list.bind(minimum_height=self.profiles_list.setter('height'))
         scroll.add_widget(self.profiles_list)
         layout.add_widget(scroll)
 
-        btn_create = UIComponents.create_primary_button('Создать новый профиль', height=56)
+        btn_create = UIComponents.create_primary_button('Создать новый профиль', height=dp(56))
         btn_create.bind(on_press=self.show_create_profile)
         layout.add_widget(btn_create)
 
@@ -585,7 +586,7 @@ class HomeScreen(BaseScreen):
             height=BTN_ACTION_H,
             background_color=COLORS['RED'],
             color=(1, 1, 1, 1),
-            font_size='17sp',
+            font_size=sp(17),
             bold=True,
         )
         btn_exit.bind(on_press=lambda x: App.get_running_app().stop())
@@ -602,9 +603,9 @@ class HomeScreen(BaseScreen):
             empty_label = Label(
                 text='Нет профилей',
                 size_hint_y=None,
-                height=70,
+                height=dp(70),
                 color=COLORS['MEDIUM_GREY'],
-                font_size='21sp',
+                font_size=sp(21),
                 bold=True,
                 halign='center'
             )
@@ -612,11 +613,11 @@ class HomeScreen(BaseScreen):
             self.profiles_list.add_widget(empty_label)
             
             hint_label = Label(
-                text='Нажмите "Создать новый профиль" чтобы начать',
+                text='Нажмите  "Создать новый профиль" чтобы начать',
                 size_hint_y=None,
-                height=50,
+                height=dp(50),
                 color=COLORS['LIGHT_GREY'],
-                font_size='15sp',
+                font_size=sp(15),
                 halign='center',
                 italic=True
             )
@@ -628,15 +629,15 @@ class HomeScreen(BaseScreen):
             profile_container = BoxLayout(
                 orientation='horizontal',
                 size_hint_y=None,
-                height=64,
-                spacing=10
+                height=dp(64),
+                spacing=dp(10)
             )
             btn = Button(
                 text=profile_name,
                 size_hint_x=0.82,
                 background_color=COLORS['WHITE'],
                 color=COLORS['DARK_BLUE'],
-                font_size='18sp',
+                font_size=sp(18),
                 bold=True,
             )
             btn.bind(on_press=lambda instance, name=profile_name: self.select_profile(name))
@@ -644,10 +645,10 @@ class HomeScreen(BaseScreen):
                 text='Удалить',
                 size_hint_x=0.18,
                 size_hint_y=None,
-                height=44,
+                height=dp(44),
                 background_color=COLORS['RED'],
                 color=(1, 1, 1, 1),
-                font_size='14sp',
+                font_size=sp(14),
                 bold=True,
             )
             del_btn.bind(on_press=lambda instance, name=profile_name: self.confirm_delete_profile(name))
@@ -690,29 +691,29 @@ class HomeScreen(BaseScreen):
         )
 
     def show_create_profile(self, instance):
-        content = BoxLayout(orientation='vertical', padding=22, spacing=20)
+        content = BoxLayout(orientation='vertical', padding=dp(22), spacing=dp(20))
         
         title_label = Label(
             text='Создание профиля',
             color=COLORS['DARK_BLUE'],
-            font_size='23sp',
+            font_size=sp(23),
             bold=True,
             size_hint_y=None,
-            height=48,
+            height=dp(48),
             halign='center'
         )
         title_label.bind(size=title_label.setter('text_size'))
         content.add_widget(title_label)
 
         input_field = TextInput(
-            hint_text='Введите имя профиля (например: "Мой магазин")',
+            hint_text='Введите имя профиля (например:  "Мой магазин")',
             multiline=False,
-            font_size='19sp',
+            font_size=sp(19),
             size_hint_y=None,
-            height=68,
+            height=dp(68),
             background_color=COLORS['WHITE'],
             foreground_color=COLORS['DARK_TEXT'],
-            padding=[16, 14],
+            padding=[dp(16), dp(14)],
             cursor_color=COLORS['DARK_BLUE']
         )
         content.add_widget(input_field)
@@ -720,24 +721,24 @@ class HomeScreen(BaseScreen):
         hint_label = Label(
             text='Имя профиля будет отображаться в заголовке приложения',
             color=COLORS['MEDIUM_GREY'],
-            font_size='15sp',
+            font_size=sp(15),
             size_hint_y=None,
-            height=48,
+            height=dp(48),
             halign='center',
             italic=True
         )
         hint_label.bind(size=hint_label.setter('text_size'))
         content.add_widget(hint_label)
 
-        buttons = BoxLayout(spacing=14, size_hint_y=None, height=BTN_ACTION_H + 4)
+        buttons = BoxLayout(spacing=dp(14), size_hint_y=None, height=BTN_ACTION_H + dp(4))
         cancel_btn = Button(
             text='Отмена',
             size_hint_x=0.45,
             size_hint_y=None,
             height=BTN_ACTION_H,
-            background_color=COLORS['MEDIUM_GREY'],
+            background_color=COLORS['MEDIUM_GREY'], 
             color=(1, 1, 1, 1),
-            font_size='17sp',
+            font_size=sp(17),
             bold=True,
         )
         ok_btn = Button(
@@ -747,7 +748,7 @@ class HomeScreen(BaseScreen):
             height=BTN_ACTION_H,
             background_color=COLORS['GREEN'],
             color=(1, 1, 1, 1),
-            font_size='17sp',
+            font_size=sp(17),
             bold=True,
         )
 
@@ -798,17 +799,17 @@ class ProfileScreen(BaseScreen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.build_ui()
-
+    
     def build_ui(self):
-        layout = BoxLayout(orientation='vertical', padding=12, spacing=12)
+        layout = BoxLayout(orientation='vertical', padding=dp(12), spacing=dp(12))
         
-        header = BoxLayout(orientation='horizontal', size_hint_y=None, height=BTN_BACK_H + 14, spacing=8)
+        header = BoxLayout(orientation='horizontal', size_hint_y=None, height=BTN_BACK_H + dp(14), spacing=dp(8))
         back_btn = UIComponents.create_back_button('home')
         header.add_widget(back_btn)
         self.title_label = Label(
             text='',
             size_hint_x=0.7,
-            font_size='20sp',
+            font_size=sp(20),
             bold=True,
             color=COLORS['DARK_BLUE'],
             halign='left',
@@ -818,7 +819,7 @@ class ProfileScreen(BaseScreen):
         header.add_widget(self.title_label)
         layout.add_widget(header)
 
-        grid = GridLayout(cols=2, spacing=12, size_hint_y=None, padding=[0, 8])
+        grid = GridLayout(cols=2, spacing=dp(12), size_hint_y=None, padding=[0, dp(8)])
         grid.bind(minimum_height=grid.setter('height'))
         tiles_config = [
             ("📦", "Каталог\nтоваров", "products", COLORS['TILE_BLUE']),
@@ -849,15 +850,15 @@ class ProductsScreen(BaseScreen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.build_ui()
-
+    
     def build_ui(self):
-        layout = BoxLayout(orientation='vertical', padding=12, spacing=12)
+        layout = BoxLayout(orientation='vertical', padding=dp(12), spacing=dp(12))
         layout.add_widget(UIComponents.create_back_button('profile'))
         
         title = Label(
             text='Каталог товаров',
             size_hint_y=0.09,
-            font_size='25sp',
+            font_size=sp(25),
             bold=True,
             color=COLORS['DARK_BLUE'],
             halign='center'
@@ -866,9 +867,9 @@ class ProductsScreen(BaseScreen):
         layout.add_widget(title)
 
         stats_hint = Label(
-            text='Нажмите "Редактировать" для изменения характеристик товара',
+            text='Нажмите  "Редактировать" для изменения характеристик товара',
             size_hint_y=0.06,
-            font_size='16sp',
+            font_size=sp(16),
             color=COLORS['MEDIUM_GREY'],
             halign='center',
             italic=True
@@ -877,7 +878,7 @@ class ProductsScreen(BaseScreen):
         layout.add_widget(stats_hint)
 
         self.scroll = ScrollView(size_hint_y=0.72)
-        self.products_list = GridLayout(cols=1, spacing=12, size_hint_y=None)
+        self.products_list = GridLayout(cols=1, spacing=dp(12), size_hint_y=None)
         self.products_list.bind(minimum_height=self.products_list.setter('height'))
         self.scroll.add_widget(self.products_list)
         layout.add_widget(self.scroll)
@@ -896,9 +897,9 @@ class ProductsScreen(BaseScreen):
             empty_label = Label(
                 text='Нет товаров в каталоге',
                 size_hint_y=None,
-                height=70,
+                height=dp(70),
                 color=COLORS['MEDIUM_GREY'],
-                font_size='21sp',
+                font_size=sp(21),
                 bold=True,
                 halign='center'
             )
@@ -906,11 +907,11 @@ class ProductsScreen(BaseScreen):
             self.products_list.add_widget(empty_label)
             
             hint_label = Label(
-                text='Нажмите "Добавить товар" в главном меню чтобы добавить товар',
+                text='Нажмите  "Добавить товар" в главном меню чтобы добавить товар',
                 size_hint_y=None,
-                height=50,
+                height=dp(50),
                 color=COLORS['LIGHT_GREY'],
-                font_size='15sp',
+                font_size=sp(15),
                 halign='center',
                 italic=True
             )
@@ -922,33 +923,33 @@ class ProductsScreen(BaseScreen):
             card = BoxLayout(
                 orientation='horizontal',
                 size_hint_y=None,
-                height=108,
-                padding=[10, 6],
-                spacing=10
+                height=dp(108),
+                padding=[dp(10), dp(6)],
+                spacing=dp(10)
             )
             
-            info_layout = BoxLayout(orientation='vertical', size_hint_x=0.85, spacing=4)
+            info_layout = BoxLayout(orientation='vertical', size_hint_x=0.85, spacing=dp(4))
             name_label = Label(
                 text=f'Название: {product["name"]}',
-                font_size='20sp',
+                font_size=sp(20),
                 bold=True,
                 color=COLORS['DARK_BLUE'],
                 size_hint_y=None,
-                height=34
+                height=dp(34)
             )
             price_label = Label(
                 text=f'Цена: {product["cost_price"]:.2f} ₽/кг',
-                font_size='17sp',
+                font_size=sp(17),
                 color=COLORS['DARK_TEXT'],
                 size_hint_y=None,
-                height=30
+                height=dp(30)
             )
             profit_label = Label(
                 text=f'Прибыль: {product["profit"]:.2f} ₽ ({product["percent_profit"]:.1f}%)',
-                font_size='17sp',
+                font_size=sp(17),
                 color=COLORS['GREEN'],
                 size_hint_y=None,
-                height=30
+                height=dp(30)
             )
             info_layout.add_widget(name_label)
             info_layout.add_widget(price_label)
@@ -958,10 +959,10 @@ class ProductsScreen(BaseScreen):
                 text='Редактировать',
                 size_hint_x=0.15,
                 size_hint_y=None,
-                height=92,
+                height=dp(92),
                 background_color=COLORS['AMBER'],
                 color=(1, 1, 1, 1),
-                font_size='14sp',
+                font_size=sp(14),
                 bold=True
             )
             edit_btn.bind(on_press=lambda instance, p=product: self.edit_product(p))
@@ -982,15 +983,15 @@ class AddProductScreen(BaseScreen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.build_ui()
-
+    
     def build_ui(self):
-        layout = BoxLayout(orientation='vertical', padding=15, spacing=15)
+        layout = BoxLayout(orientation='vertical', padding=dp(15), spacing=dp(15))
         layout.add_widget(UIComponents.create_back_button('profile'))
         
         title = Label(
             text='Добавление товара',
             size_hint_y=0.09,
-            font_size='25sp',
+            font_size=sp(25),
             bold=True,
             color=COLORS['GREEN'],
             halign='center'
@@ -998,25 +999,25 @@ class AddProductScreen(BaseScreen):
         title.bind(size=title.setter('text_size'))
         layout.add_widget(title)
 
-        form_layout = GridLayout(cols=1, spacing=15, padding=[0, 10, 0, 0])
+        form_layout = GridLayout(cols=1, spacing=dp(15), padding=[0, dp(10), 0, 0])
         
         form_layout.add_widget(Label(
             text='Название товара:',
             color=COLORS['DARK_BLUE'],
-            font_size='18sp',
+            font_size=sp(18),
             bold=True,
             size_hint_y=None,
-            height=38
+            height=dp(38)
         ))
         
         self.name_input = TextInput(
             multiline=False,
-            font_size='19sp',
-            height=58,
+            font_size=sp(19),
+            height=dp(58),
             size_hint_y=None,
             background_color=COLORS['WHITE'],
             foreground_color=COLORS['DARK_TEXT'],
-            padding=[14, 12],
+            padding=[dp(14), dp(12)],
             cursor_color=COLORS['DARK_BLUE']
         )
         form_layout.add_widget(self.name_input)
@@ -1024,21 +1025,21 @@ class AddProductScreen(BaseScreen):
         form_layout.add_widget(Label(
             text='Стоимость за кг (₽):',
             color=COLORS['DARK_BLUE'],
-            font_size='18sp',
+            font_size=sp(18),
             bold=True,
             size_hint_y=None,
-            height=38
+            height=dp(38)
         ))
         
         self.cost_input = TextInput(
             text='0.00',
             multiline=False,
-            font_size='19sp',
-            height=58,
+            font_size=sp(19),
+            height=dp(58),
             size_hint_y=None,
             background_color=COLORS['WHITE'],
             foreground_color=COLORS['DARK_TEXT'],
-            padding=[14, 12],
+            padding=[dp(14), dp(12)],
             cursor_color=COLORS['DARK_BLUE']
         )
         self.cost_input.bind(text=self.update_calculations)
@@ -1047,53 +1048,53 @@ class AddProductScreen(BaseScreen):
         form_layout.add_widget(Label(
             text='Прибыль (₽):',
             color=COLORS['DARK_BLUE'],
-            font_size='18sp',
+            font_size=sp(18),
             bold=True,
             size_hint_y=None,
-            height=38
+            height=dp(38)
         ))
         
         self.profit_input = TextInput(
             text='0.00',
             multiline=False,
-            font_size='19sp',
-            height=58,
+            font_size=sp(19),
+            height=dp(58),
             size_hint_y=None,
             background_color=COLORS['WHITE'],
             foreground_color=COLORS['DARK_TEXT'],
-            padding=[14, 12],
+            padding=[dp(14), dp(12)],
             cursor_color=COLORS['DARK_BLUE']
         )
         self.profit_input.bind(text=self.update_calculations)
         form_layout.add_widget(self.profit_input)
 
-        calc_layout = BoxLayout(orientation='vertical', size_hint_y=None, height=125, padding=[14, 12])
+        calc_layout = BoxLayout(orientation='vertical', size_hint_y=None, height=dp(125), padding=[dp(14), dp(12)])
         
         self.expenses_label = Label(
             text='Затраты: 0.00 ₽',
             color=COLORS['ORANGE'],
-            font_size='18sp',
+            font_size=sp(18),
             bold=True,
             size_hint_y=None,
-            height=40
+            height=dp(40)
         )
         
         self.percent_label = Label(
             text='%Затрат: 0.00% | %Прибыли: 0.00%',
             color=COLORS['DARK_BLUE'],
-            font_size='17sp',
+            font_size=sp(17),
             bold=True,
             size_hint_y=None,
-            height=40
+            height=dp(40)
         )
         
         formula_label = Label(
             text='Формула: %Затрат = (Затраты / (Затраты + Прибыль)) × 100%',
             color=COLORS['MEDIUM_GREY'],
-            font_size='15sp',
+            font_size=sp(15),
             italic=True,
             size_hint_y=None,
-            height=36
+            height=dp(36)
         )
         
         calc_layout.add_widget(self.expenses_label)
@@ -1108,7 +1109,7 @@ class AddProductScreen(BaseScreen):
             size_hint_y=0.14,
             background_color=COLORS['GREEN'],
             color=(1, 1, 1, 1),
-            font_size='22sp',
+            font_size=sp(22),
             bold=True
         )
         save_btn.bind(on_press=self.save_product)
@@ -1204,15 +1205,15 @@ class EditProductScreen(BaseScreen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.build_ui()
-
+    
     def build_ui(self):
-        layout = BoxLayout(orientation='vertical', padding=15, spacing=15)
+        layout = BoxLayout(orientation='vertical', padding=dp(15), spacing=dp(15))
         layout.add_widget(UIComponents.create_back_button('products'))
         
         self.title_label = Label(
             text='Редактирование товара',
             size_hint_y=0.09,
-            font_size='25sp',
+            font_size=sp(25),
             bold=True,
             color=COLORS['AMBER'],
             halign='center'
@@ -1220,25 +1221,25 @@ class EditProductScreen(BaseScreen):
         self.title_label.bind(size=self.title_label.setter('text_size'))
         layout.add_widget(self.title_label)
 
-        form_layout = GridLayout(cols=1, spacing=15, padding=[0, 10, 0, 0])
+        form_layout = GridLayout(cols=1, spacing=dp(15), padding=[0, dp(10), 0, 0])
         
         form_layout.add_widget(Label(
             text='Название товара:',
             color=COLORS['DARK_BLUE'],
-            font_size='18sp',
+            font_size=sp(18),
             bold=True,
             size_hint_y=None,
-            height=38
+            height=dp(38)
         ))
         
         self.name_input = TextInput(
             multiline=False,
-            font_size='19sp',
-            height=58,
+            font_size=sp(19),
+            height=dp(58),
             size_hint_y=None,
             background_color=COLORS['WHITE'],
             foreground_color=COLORS['DARK_TEXT'],
-            padding=[14, 12],
+            padding=[dp(14), dp(12)],
             cursor_color=COLORS['DARK_BLUE']
         )
         form_layout.add_widget(self.name_input)
@@ -1246,21 +1247,21 @@ class EditProductScreen(BaseScreen):
         form_layout.add_widget(Label(
             text='Стоимость за кг (₽):',
             color=COLORS['DARK_BLUE'],
-            font_size='18sp',
+            font_size=sp(18),
             bold=True,
             size_hint_y=None,
-            height=38
+            height=dp(38)
         ))
         
         self.cost_input = TextInput(
             text='0.00',
             multiline=False,
-            font_size='19sp',
-            height=58,
+            font_size=sp(19),
+            height=dp(58),
             size_hint_y=None,
             background_color=COLORS['WHITE'],
             foreground_color=COLORS['DARK_TEXT'],
-            padding=[14, 12],
+            padding=[dp(14), dp(12)],
             cursor_color=COLORS['DARK_BLUE']
         )
         self.cost_input.bind(text=self.update_calculations)
@@ -1269,53 +1270,53 @@ class EditProductScreen(BaseScreen):
         form_layout.add_widget(Label(
             text='Прибыль (₽):',
             color=COLORS['DARK_BLUE'],
-            font_size='18sp',
+            font_size=sp(18),
             bold=True,
             size_hint_y=None,
-            height=38
+            height=dp(38)
         ))
         
         self.profit_input = TextInput(
             text='0.00',
             multiline=False,
-            font_size='19sp',
-            height=58,
+            font_size=sp(19),
+            height=dp(58),
             size_hint_y=None,
             background_color=COLORS['WHITE'],
             foreground_color=COLORS['DARK_TEXT'],
-            padding=[14, 12],
+            padding=[dp(14), dp(12)],
             cursor_color=COLORS['DARK_BLUE']
         )
         self.profit_input.bind(text=self.update_calculations)
         form_layout.add_widget(self.profit_input)
 
-        calc_layout = BoxLayout(orientation='vertical', size_hint_y=None, height=125, padding=[14, 12])
+        calc_layout = BoxLayout(orientation='vertical', size_hint_y=None, height=dp(125), padding=[dp(14), dp(12)])
         
         self.expenses_label = Label(
             text='Затраты: 0.00 ₽',
             color=COLORS['ORANGE'],
-            font_size='18sp',
+            font_size=sp(18),
             bold=True,
             size_hint_y=None,
-            height=40
+            height=dp(40)
         )
         
         self.percent_label = Label(
             text='%Затрат: 0.00% | %Прибыли: 0.00%',
             color=COLORS['DARK_BLUE'],
-            font_size='17sp',
+            font_size=sp(17),
             bold=True,
             size_hint_y=None,
-            height=40
+            height=dp(40)
         )
         
         formula_label = Label(
             text='Формула: %Затрат = (Затраты / (Затраты + Прибыль)) × 100%',
             color=COLORS['MEDIUM_GREY'],
-            font_size='15sp',
+            font_size=sp(15),
             italic=True,
             size_hint_y=None,
-            height=36
+            height=dp(36)
         )
         
         calc_layout.add_widget(self.expenses_label)
@@ -1325,13 +1326,13 @@ class EditProductScreen(BaseScreen):
         form_layout.add_widget(calc_layout)
         layout.add_widget(form_layout)
 
-        btn_layout = BoxLayout(spacing=16, size_hint_y=None, height=78)
+        btn_layout = BoxLayout(spacing=dp(16), size_hint_y=None, height=dp(78))
         
         delete_btn = Button(
             text='Удалить',
             background_color=COLORS['RED'],
             color=(1, 1, 1, 1),
-            font_size='19sp',
+            font_size=sp(19),
             bold=True,
             size_hint_x=0.45
         )
@@ -1340,7 +1341,7 @@ class EditProductScreen(BaseScreen):
             text='Сохранить',
             background_color=COLORS['GREEN'],
             color=(1, 1, 1, 1),
-            font_size='19sp',
+            font_size=sp(19),
             bold=True,
             size_hint_x=0.45
         )
@@ -1478,15 +1479,15 @@ class WarehouseScreen(BaseScreen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.build_ui()
-
+    
     def build_ui(self):
-        layout = BoxLayout(orientation='vertical', padding=12, spacing=12)
+        layout = BoxLayout(orientation='vertical', padding=dp(12), spacing=dp(12))
         layout.add_widget(UIComponents.create_back_button('profile'))
         
         self.stats_label = Label(
             text='Общая стоимость: 0.00 ₽\nОбщий остаток: 0.00 кг',
             size_hint_y=0.15,
-            font_size='18sp',
+            font_size=sp(18),
             halign='center',
             color=COLORS['DARK_TEXT']
         )
@@ -1494,18 +1495,18 @@ class WarehouseScreen(BaseScreen):
         layout.add_widget(self.stats_label)
 
         scroll = ScrollView(size_hint_y=0.62)
-        self.warehouse_list = GridLayout(cols=1, spacing=10, size_hint_y=None)
+        self.warehouse_list = GridLayout(cols=1, spacing=dp(10), size_hint_y=None)
         self.warehouse_list.bind(minimum_height=self.warehouse_list.setter('height'))
         scroll.add_widget(self.warehouse_list)
         layout.add_widget(scroll)
 
-        btn_layout = BoxLayout(orientation='horizontal', size_hint_y=0.08, spacing=10)
+        btn_layout = BoxLayout(orientation='horizontal', size_hint_y=0.08, spacing=dp(10))
         
         add_btn = Button(
             text='Пополнить',
             background_color=COLORS['TEAL'],
             color=(1, 1, 1, 1),
-            font_size='17sp',
+            font_size=sp(17),
             bold=True
         )
         
@@ -1513,7 +1514,7 @@ class WarehouseScreen(BaseScreen):
             text='Скорректировать',
             background_color=COLORS['AMBER'],
             color=(1, 1, 1, 1),
-            font_size='17sp',
+            font_size=sp(17),
             bold=True
         )
         
@@ -1521,7 +1522,7 @@ class WarehouseScreen(BaseScreen):
             text='История',
             background_color=COLORS['PINK'],
             color=(1, 1, 1, 1),
-            font_size='17sp',
+            font_size=sp(17),
             bold=True
         )
         
@@ -1561,9 +1562,9 @@ class WarehouseScreen(BaseScreen):
             empty_label = Label(
                 text='Нет товаров в каталоге',
                 size_hint_y=None,
-                height=60,
+                height=dp(60),
                 color=COLORS['MEDIUM_GREY'],
-                font_size='21sp',
+                font_size=sp(21),
                 bold=True,
                 halign='center'
             )
@@ -1586,40 +1587,40 @@ class WarehouseScreen(BaseScreen):
             card = BoxLayout(
                 orientation='horizontal',
                 size_hint_y=None,
-                height=92,
-                padding=[8, 5],
-                spacing=8
+                height=dp(92),
+                padding=[dp(8), dp(5)],
+                spacing=dp(8)
             )
             
             info_layout = BoxLayout(
                 orientation='vertical',
                 size_hint_x=0.85,
-                spacing=2
+                spacing=dp(2)
             )
             
             name_label = Label(
                 text=product_name,
-                font_size='18sp',
+                font_size=sp(18),
                 bold=True,
                 color=COLORS['DARK_TEXT'],
                 size_hint_y=None,
-                height=28
+                height=dp(28)
             )
             
             qty_label = Label(
                 text=f'Остаток: {qty:.2f} кг',
-                font_size='16sp',
+                font_size=sp(16),
                 color=COLORS['GREEN'] if qty > 0 else COLORS['RED'],
                 size_hint_y=None,
-                height=26
+                height=dp(26)
             )
             
             price_label = Label(
                 text=f'Ср. цена: {avg_price:.2f} ₽/кг',
-                font_size='16sp',
+                font_size=sp(16),
                 color=COLORS['DARK_TEXT'],
                 size_hint_y=None,
-                height=26
+                height=dp(26)
             )
             
             info_layout.add_widget(name_label)
@@ -1630,10 +1631,10 @@ class WarehouseScreen(BaseScreen):
                 text='Изменить',
                 size_hint_x=0.15,
                 size_hint_y=None,
-                height=72,
+                height=dp(72),
                 background_color=COLORS['AMBER'],
                 color=(1, 1, 1, 1),
-                font_size='14sp',
+                font_size=sp(14),
                 bold=True
             )
             edit_btn.bind(on_press=lambda instance, p=product_name: self.edit_warehouse_item(p))
@@ -1660,30 +1661,30 @@ class WarehouseScreen(BaseScreen):
                 self.show_popup('Ошибка', 'Нет товаров в каталоге')
                 return
             
-            content = BoxLayout(orientation='vertical', padding=16, spacing=12)
+            content = BoxLayout(orientation='vertical', padding=dp(16), spacing=dp(12))
             
             title_label = Label(
                 text='Выберите товар для корректировки',
                 color=COLORS['DARK_TEXT'],
-                font_size='19sp',
+                font_size=sp(19),
                 bold=True,
                 size_hint_y=None,
-                height=42
+                height=dp(42)
             )
             content.add_widget(title_label)
             
             scroll = ScrollView(size_hint_y=0.7)
-            products_list = GridLayout(cols=1, spacing=8, size_hint_y=None)
+            products_list = GridLayout(cols=1, spacing=dp(8), size_hint_y=None)
             products_list.bind(minimum_height=products_list.setter('height'))
             
             for product in sorted(profile_data["products"], key=lambda x: x["name"]):
                 btn = Button(
                     text=product["name"],
                     size_hint_y=None,
-                    height=48,
+                    height=dp(48),
                     background_color=COLORS['WHITE'],
                     color=COLORS['DARK_TEXT'],
-                    font_size='17sp'
+                    font_size=sp(17)
                 )
                 btn.bind(on_press=lambda instance, p=product["name"]: self._open_edit_dialog(p, content.parent))
                 products_list.add_widget(btn)
@@ -1715,15 +1716,15 @@ class WarehouseScreen(BaseScreen):
         current_value = stock_data["total_value"]
         avg_price = current_value / current_qty if current_qty > 0 else 0.0
         
-        content = BoxLayout(orientation='vertical', padding=16, spacing=16)
+        content = BoxLayout(orientation='vertical', padding=dp(16), spacing=dp(16))
         
         title_label = Label(
             text=f'Редактирование: {product_name}',
             color=COLORS['DARK_TEXT'],
-            font_size='19sp',
+            font_size=sp(19),
             bold=True,
             size_hint_y=None,
-            height=42
+            height=dp(42)
         )
         content.add_widget(title_label)
         
@@ -1737,58 +1738,58 @@ class WarehouseScreen(BaseScreen):
             )
             
             price_info = Label(
-                text=f"Стоимость продажи: {product_info['cost_price']:.2f} ₽/кг\n"
+                text=f"Стоимость продажи: {product_info['cost_price']:.2f} ₽/кг\n "
                      f"Прибыль: {product_info['profit']:.2f} ₽ ({percent_profit:.1f}%)",
                 color=COLORS['MEDIUM_GREY'],
-                font_size='15sp',
+                font_size=sp(15),
                 size_hint_y=None,
-                height=62
+                height=dp(62)
             )
             content.add_widget(price_info)
         
-        qty_layout = BoxLayout(orientation='vertical', size_hint_y=None, height=82)
+        qty_layout = BoxLayout(orientation='vertical', size_hint_y=None, height=dp(82))
         qty_layout.add_widget(Label(
             text='Остаток (кг):',
             color=COLORS['DARK_TEXT'],
-            font_size='17sp',
+            font_size=sp(17),
             bold=True,
             size_hint_y=None,
-            height=32
+            height=dp(32)
         ))
         
         self.qty_input = TextInput(
             text=f'{current_qty:.2f}',
             multiline=False,
-            font_size='19sp',
-            height=50,
+            font_size=sp(19),
+            height=dp(50),
             size_hint_y=None,
             background_color=COLORS['WHITE'],
             foreground_color=COLORS['DARK_TEXT'],
-            padding=[10, 10],
+            padding=[dp(10), dp(10)],
             cursor_color=COLORS['DARK_BLUE']
         )
         qty_layout.add_widget(self.qty_input)
         content.add_widget(qty_layout)
         
-        price_layout = BoxLayout(orientation='vertical', size_hint_y=None, height=82)
+        price_layout = BoxLayout(orientation='vertical', size_hint_y=None, height=dp(82))
         price_layout.add_widget(Label(
             text='Средняя цена закупки (₽/кг):',
             color=COLORS['DARK_TEXT'],
-            font_size='17sp',
+            font_size=sp(17),
             bold=True,
             size_hint_y=None,
-            height=32
+            height=dp(32)
         ))
         
         self.price_input = TextInput(
             text=f'{avg_price:.2f}',
             multiline=False,
-            font_size='19sp',
-            height=50,
+            font_size=sp(19),
+            height=dp(50),
             size_hint_y=None,
             background_color=COLORS['WHITE'],
             foreground_color=COLORS['DARK_TEXT'],
-            padding=[10, 10],
+            padding=[dp(10), dp(10)],
             cursor_color=COLORS['DARK_BLUE']
         )
         price_layout.add_widget(self.price_input)
@@ -1797,19 +1798,19 @@ class WarehouseScreen(BaseScreen):
         calc_label = Label(
             text=f'Текущая стоимость остатка: {current_value:.2f} ₽',
             color=COLORS['MEDIUM_GREY'],
-            font_size='15sp',
+            font_size=sp(15),
             size_hint_y=None,
-            height=38
+            height=dp(38)
         )
         content.add_widget(calc_label)
         
-        buttons_layout = BoxLayout(spacing=16, size_hint_y=None, height=72)
+        buttons_layout = BoxLayout(spacing=dp(16), size_hint_y=None, height=dp(72))
         
         cancel_btn = Button(
             text='Отмена',
             background_color=COLORS['RED'],
             color=(1, 1, 1, 1),
-            font_size='18sp',
+            font_size=sp(18),
             bold=True
         )
         
@@ -1817,7 +1818,7 @@ class WarehouseScreen(BaseScreen):
             text='Сохранить',
             background_color=COLORS['GREEN'],
             color=(1, 1, 1, 1),
-            font_size='18sp',
+            font_size=sp(18),
             bold=True
         )
         
@@ -1888,15 +1889,15 @@ class AddStockScreen(BaseScreen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.build_ui()
-
+    
     def build_ui(self):
-        layout = BoxLayout(orientation='vertical', padding=15, spacing=15)
+        layout = BoxLayout(orientation='vertical', padding=dp(15), spacing=dp(15))
         layout.add_widget(UIComponents.create_back_button('warehouse', 'Назад к складу'))
         
         title = Label(
             text='Пополнение склада',
             size_hint_y=0.1,
-            font_size='23sp',
+            font_size=sp(23),
             bold=True,
             color=COLORS['TEAL'],
             halign='center'
@@ -1904,24 +1905,24 @@ class AddStockScreen(BaseScreen):
         title.bind(size=title.setter('text_size'))
         layout.add_widget(title)
 
-        form_layout = GridLayout(cols=1, spacing=13, padding=[0, 10, 0, 0])
+        form_layout = GridLayout(cols=1, spacing=dp(13), padding=[0, dp(10), 0, 0])
         
         form_layout.add_widget(Label(
             text='Товар:',
             color=COLORS['DARK_TEXT'],
-            font_size='17sp',
+            font_size=sp(17),
             bold=True,
             size_hint_y=None,
-            height=32
+            height=dp(32)
         ))
         
         self.product_btn = Button(
             text='Выберите товар',
             background_color=COLORS['LIGHT_BG'],
             color=COLORS['DARK_TEXT'],
-            font_size='17sp',
+            font_size=sp(17),
             size_hint_y=None,
-            height=52
+            height=dp(52)
         )
         self.product_btn.bind(on_press=self.show_product_dropdown)
         form_layout.add_widget(self.product_btn)
@@ -1929,21 +1930,21 @@ class AddStockScreen(BaseScreen):
         form_layout.add_widget(Label(
             text='Количество (кг):',
             color=COLORS['DARK_TEXT'],
-            font_size='17sp',
+            font_size=sp(17),
             bold=True,
             size_hint_y=None,
-            height=32
+            height=dp(32)
         ))
         
         self.qty_input = TextInput(
             text='1.0',
             multiline=False,
-            font_size='19sp',
-            height=52,
+            font_size=sp(19),
+            height=dp(52),
             size_hint_y=None,
             background_color=COLORS['WHITE'],
             foreground_color=COLORS['DARK_TEXT'],
-            padding=[10, 10],
+            padding=[dp(10), dp(10)],
             cursor_color=COLORS['DARK_BLUE']
         )
         form_layout.add_widget(self.qty_input)
@@ -1951,21 +1952,21 @@ class AddStockScreen(BaseScreen):
         form_layout.add_widget(Label(
             text='Цена закупки за кг (₽):',
             color=COLORS['DARK_TEXT'],
-            font_size='17sp',
+            font_size=sp(17),
             bold=True,
             size_hint_y=None,
-            height=32
+            height=dp(32)
         ))
         
         self.price_input = TextInput(
             text='100.00',
             multiline=False,
-            font_size='19sp',
-            height=52,
+            font_size=sp(19),
+            height=dp(52),
             size_hint_y=None,
             background_color=COLORS['WHITE'],
             foreground_color=COLORS['DARK_TEXT'],
-            padding=[10, 10],
+            padding=[dp(10), dp(10)],
             cursor_color=COLORS['DARK_BLUE']
         )
         form_layout.add_widget(self.price_input)
@@ -1973,10 +1974,10 @@ class AddStockScreen(BaseScreen):
         info_label = Label(
             text='Цена закупки используется для расчёта стоимости запасов',
             color=COLORS['MEDIUM_GREY'],
-            font_size='15sp',
+            font_size=sp(15),
             italic=True,
             size_hint_y=None,
-            height=42
+            height=dp(42)
         )
         form_layout.add_widget(info_label)
         
@@ -1987,7 +1988,7 @@ class AddStockScreen(BaseScreen):
             size_hint_y=0.14,
             background_color=COLORS['TEAL'],
             color=(1, 1, 1, 1),
-            font_size='21sp',
+            font_size=sp(21),
             bold=True
         )
         save_btn.bind(on_press=self.save_to_stock)
@@ -2013,10 +2014,10 @@ class AddStockScreen(BaseScreen):
             btn = Button(
                 text=product,
                 size_hint_y=None,
-                height=42,
+                height=dp(42),
                 background_color=COLORS['WHITE'],
                 color=COLORS['DARK_TEXT'],
-                font_size='17sp'
+                font_size=sp(17)
             )
             btn.bind(on_release=lambda btn, p=product: self.select_product(p, dropdown))
             dropdown.add_widget(btn)
@@ -2088,15 +2089,15 @@ class CreateOrderScreen(BaseScreen):
         self.delivery_enabled = True
         self.current_order_number = 1
         self.build_ui()
-
+    
     def build_ui(self):
-        layout = BoxLayout(orientation='vertical', padding=12, spacing=12)
+        layout = BoxLayout(orientation='vertical', padding=dp(12), spacing=dp(12))
         layout.add_widget(UIComponents.create_back_button('profile'))
         
         self.title_label = Label(
             text='Заказ №1',
             size_hint_y=0.08,
-            font_size='23sp',
+            font_size=sp(23),
             bold=True,
             color=COLORS['PURPLE'],
             halign='center'
@@ -2107,18 +2108,18 @@ class CreateOrderScreen(BaseScreen):
         product_layout.add_widget(Label(
             text='Товар:',
             color=COLORS['DARK_TEXT'],
-            font_size='17sp',
+            font_size=sp(17),
             size_hint_y=None,
-            height=32
+            height=dp(32)
         ))
         
         self.product_btn = Button(
             text='Выберите товар',
             background_color=COLORS['LIGHT_BG'],
             color=COLORS['DARK_TEXT'],
-            font_size='17sp',
+            font_size=sp(17),
             size_hint_y=None,
-            height=52
+            height=dp(52)
         )
         self.product_btn.bind(on_press=self.show_product_dropdown)
         product_layout.add_widget(self.product_btn)
@@ -2128,20 +2129,20 @@ class CreateOrderScreen(BaseScreen):
         qty_layout.add_widget(Label(
             text='Количество (кг):',
             color=COLORS['DARK_TEXT'],
-            font_size='17sp',
+            font_size=sp(17),
             size_hint_y=None,
-            height=32
+            height=dp(32)
         ))
         
         self.qty_input = TextInput(
             text='1.0',
             multiline=False,
-            font_size='19sp',
-            height=52,
+            font_size=sp(19),
+            height=dp(52),
             size_hint_y=None,
             background_color=COLORS['WHITE'],
             foreground_color=COLORS['DARK_TEXT'],
-            padding=[10, 10],
+            padding=[dp(10), dp(10)],
             cursor_color=COLORS['DARK_BLUE']
         )
         qty_layout.add_widget(self.qty_input)
@@ -2150,7 +2151,7 @@ class CreateOrderScreen(BaseScreen):
         self.info_label = Label(
             text='',
             size_hint_y=0.12,
-            font_size='15sp',
+            font_size=sp(15),
             halign='left',
             color=COLORS['MEDIUM_GREY']
         )
@@ -2162,9 +2163,9 @@ class CreateOrderScreen(BaseScreen):
             text='Доставка: ВКЛ',
             background_color=COLORS['DARK_BLUE'],
             color=(1, 1, 1, 1),
-            font_size='17sp',
+            font_size=sp(17),
             size_hint_y=None,
-            height=52
+            height=dp(52)
         )
         self.delivery_btn.bind(on_press=self.toggle_delivery)
         delivery_layout.add_widget(self.delivery_btn)
@@ -2174,13 +2175,13 @@ class CreateOrderScreen(BaseScreen):
         items_layout.add_widget(Label(
             text='Позиции заказа:',
             color=COLORS['DARK_TEXT'],
-            font_size='17sp',
+            font_size=sp(17),
             size_hint_y=None,
-            height=32
+            height=dp(32)
         ))
         
         self.items_scroll = ScrollView(size_hint_y=0.8)
-        self.items_list = GridLayout(cols=1, spacing=5, size_hint_y=None)
+        self.items_list = GridLayout(cols=1, spacing=dp(5), size_hint_y=None)
         self.items_list.bind(minimum_height=self.items_list.setter('height'))
         self.items_scroll.add_widget(self.items_list)
         items_layout.add_widget(self.items_scroll)
@@ -2189,31 +2190,31 @@ class CreateOrderScreen(BaseScreen):
         total_layout = BoxLayout(orientation='vertical', size_hint_y=0.2)
         self.total_label = Label(
             text='Итого: 0.00 ₽',
-            font_size='21sp',
+            font_size=sp(21),
             bold=True,
             color=COLORS['DARK_TEXT'],
             size_hint_y=0.4
         )
         total_layout.add_widget(self.total_label)
 
-        buttons_layout = BoxLayout(spacing=11, size_hint_y=0.6)
+        buttons_layout = BoxLayout(spacing=dp(11), size_hint_y=0.6)
         
         add_btn = Button(
             text='Добавить',
             background_color=COLORS['DARK_BLUE'],
             color=(1, 1, 1, 1),
-            font_size='16sp',
+            font_size=sp(16),
             size_hint_y=None,
-            height=52
+            height=dp(52)
         )
         
         save_btn = Button(
             text='Сохранить',
             background_color=COLORS['GREEN'],
             color=(1, 1, 1, 1),
-            font_size='16sp',
+            font_size=sp(16),
             size_hint_y=None,
-            height=52
+            height=dp(52)
         )
         
         add_btn.bind(on_press=self.add_item)
@@ -2249,10 +2250,10 @@ class CreateOrderScreen(BaseScreen):
             btn = Button(
                 text=product,
                 size_hint_y=None,
-                height=42,
+                height=dp(42),
                 background_color=COLORS['WHITE'],
                 color=COLORS['DARK_TEXT'],
-                font_size='17sp'
+                font_size=sp(17)
             )
             btn.bind(on_release=lambda btn, p=product: self.select_product(p, dropdown))
             dropdown.add_widget(btn)
@@ -2276,9 +2277,9 @@ class CreateOrderScreen(BaseScreen):
             )
             
             info_text = (
-                f"Стоимость: {product['cost_price']:.2f} ₽/кг | "
-                f"Прибыль: {product['profit']:.2f} ₽ ({percent_profit:.1f}%) | "
-                f"Остаток: {stock_data['current_quantity']:.2f} кг"
+                f"Стоимость: {product['cost_price']:.2f} ₽/кг |  "
+                f"Прибыль: {product['profit']:.2f} ₽ ({percent_profit:.1f}%) |  "
+                f"Остаток: {stock_data['current_quantity']:.2f} кг "
             )
             self.info_label.text = info_text
 
@@ -2326,9 +2327,9 @@ class CreateOrderScreen(BaseScreen):
         item_label = Label(
             text=f'{product_name} × {qty:.1f} кг = {item["total"]:.2f} ₽',
             size_hint_y=None,
-            height=42,
+            height=dp(42),
             color=COLORS['DARK_TEXT'],
-            font_size='16sp'
+            font_size=sp(16)
         )
         self.items_list.add_widget(item_label)
         self.update_total()
@@ -2437,18 +2438,18 @@ class CreateOrderScreen(BaseScreen):
 class SalesAnalysisScreen(BaseScreen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self._table_w = get_table_width()
+        self._table_w = dp(1150)
         self.build_ui()
-
+    
     def build_ui(self):
-        self._table_w = get_table_width()
-        layout = BoxLayout(orientation='vertical', padding=[12, 12, 12, 16], spacing=8)
+        self._table_w = dp(1150)
+        layout = BoxLayout(orientation='vertical', padding=[dp(12), dp(12), dp(12), dp(16)], spacing=dp(8))
         layout.add_widget(UIComponents.create_back_button('profile'))
         
         title = Label(
             text='Анализ продаж',
             size_hint_y=0.08,
-            font_size='26sp',
+            font_size=sp(26),
             bold=True,
             color=COLORS['DARK_BLUE'],
             halign='center'
@@ -2459,7 +2460,7 @@ class SalesAnalysisScreen(BaseScreen):
         hint_label = Label(
             text='Выберите период и товар для анализа',
             size_hint_y=0.05,
-            font_size='17sp',
+            font_size=sp(17),
             color=COLORS['MEDIUM_GREY'],
             italic=True,
             halign='center'
@@ -2467,28 +2468,28 @@ class SalesAnalysisScreen(BaseScreen):
         hint_label.bind(size=hint_label.setter('text_size'))
         layout.add_widget(hint_label)
 
-        filters_layout = BoxLayout(orientation='vertical', size_hint_y=0.24, spacing=12)
+        filters_layout = BoxLayout(orientation='vertical', size_hint_y=0.24, spacing=dp(12))
         
         # Дата от
-        date_from_layout = BoxLayout(orientation='vertical', size_hint_y=None, height=70)
+        date_from_layout = BoxLayout(orientation='vertical', size_hint_y=None, height=dp(70))
         date_from_layout.add_widget(Label(
             text='Начало периода:',
             color=COLORS['DARK_BLUE'],
-            font_size='17sp',
+            font_size=sp(17),
             bold=True,
             size_hint_y=None,
-            height=32
+            height=dp(32)
         ))
         
         self.date_from_input = TextInput(
             text=(date.today() - timedelta(days=30)).isoformat(),
             multiline=False,
-            font_size='13sp',
-            height=36,
+            font_size=sp(13),
+            height=dp(36),
             size_hint_y=None,
             background_color=COLORS['WHITE'],
             foreground_color=COLORS['DARK_TEXT'],
-            padding=[15, 11],
+            padding=[dp(15), dp(11)],
             hint_text='ГГГГ-ММ-ДД',
             cursor_color=COLORS['DARK_BLUE']
         )
@@ -2496,25 +2497,25 @@ class SalesAnalysisScreen(BaseScreen):
         filters_layout.add_widget(date_from_layout)
         
         # Дата до
-        date_to_layout = BoxLayout(orientation='vertical', size_hint_y=None, height=70)
+        date_to_layout = BoxLayout(orientation='vertical', size_hint_y=None, height=dp(70))
         date_to_layout.add_widget(Label(
             text='Конец периода:',
             color=COLORS['DARK_BLUE'],
-            font_size='17sp',
+            font_size=sp(17),
             bold=True,
             size_hint_y=None,
-            height=32
+            height=dp(32)
         ))
         
         self.date_to_input = TextInput(
             text=date.today().isoformat(),
             multiline=False,
-            font_size='13sp',
-            height=36,
+            font_size=sp(13),
+            height=dp(36),
             size_hint_y=None,
             background_color=COLORS['WHITE'],
             foreground_color=COLORS['DARK_TEXT'],
-            padding=[15, 11],
+            padding=[dp(15), dp(11)],
             hint_text='ГГГГ-ММ-ДД',
             cursor_color=COLORS['DARK_BLUE']
         )
@@ -2522,23 +2523,23 @@ class SalesAnalysisScreen(BaseScreen):
         filters_layout.add_widget(date_to_layout)
         
         # Выбор товара
-        product_filter_layout = BoxLayout(orientation='vertical', size_hint_y=None, height=70)
+        product_filter_layout = BoxLayout(orientation='vertical', size_hint_y=None, height=dp(70))
         product_filter_layout.add_widget(Label(
             text='Фильтр по товару:',
             color=COLORS['DARK_BLUE'],
-            font_size='17sp',
+            font_size=sp(17),
             bold=True,
             size_hint_y=None,
-            height=32
+            height=dp(32)
         ))
         
         self.product_dropdown_btn = Button(
             text='Все товары',
             size_hint_y=None,
-            height=36,
+            height=dp(36),
             background_color=COLORS['LIGHT_BG'],
             color=COLORS['DARK_TEXT'],
-            font_size='17sp',
+            font_size=sp(17),
             bold=True
         )
         self.product_dropdown_btn.bind(on_press=self.show_product_dropdown)
@@ -2548,7 +2549,7 @@ class SalesAnalysisScreen(BaseScreen):
         layout.add_widget(filters_layout)
 
         # Кнопки фильтрации — единый размер
-        btn_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=BTN_ACTION_H + 8, spacing=12)
+        btn_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=BTN_ACTION_H + dp(8), spacing=dp(12))
         apply_btn = UIComponents.create_primary_button('Применить')
         apply_btn.background_color = COLORS['GREEN']
         clear_btn = UIComponents.create_secondary_button('Сбросить')
@@ -2564,7 +2565,7 @@ class SalesAnalysisScreen(BaseScreen):
         results_title = Label(
             text='Результаты анализа (свайп влево/вправо — все столбцы)',
             size_hint_y=0.055,
-            font_size='18sp',
+            font_size=sp(18),
             bold=True,
             color=COLORS['DARK_BLUE'],
             halign='center'
@@ -2576,7 +2577,7 @@ class SalesAnalysisScreen(BaseScreen):
             size_hint_y=0.54,
             do_scroll_x=True,
             do_scroll_y=True,
-            bar_width=10,
+            bar_width=dp(10),
             scroll_type=['bars', 'content'],
             bar_color=COLORS['DARK_BLUE'][:3] + (0.85,),
             bar_inactive_color=COLORS['LIGHT_GREY'][:3] + (0.65,),
@@ -2584,7 +2585,7 @@ class SalesAnalysisScreen(BaseScreen):
         self.analysis_scroll = scroll
         w = self._table_w
         self.analysis_container = BoxLayout(orientation='vertical', size_hint_x=None, width=w)
-        self.analysis_list = GridLayout(cols=1, spacing=10, size_hint_y=None, size_hint_x=None, width=w)
+        self.analysis_list = GridLayout(cols=1, spacing=dp(10), size_hint_y=None, size_hint_x=None, width=w)
         self.analysis_list.bind(minimum_height=self.analysis_list.setter('height'))
         self.analysis_container.add_widget(self.analysis_list)
         scroll.add_widget(self.analysis_container)
@@ -2607,10 +2608,10 @@ class SalesAnalysisScreen(BaseScreen):
             btn = Button(
                 text=product_name,
                 size_hint_y=None,
-                height=50,
+                height=dp(50),
                 background_color=COLORS['WHITE'],
                 color=COLORS['DARK_TEXT'],
-                font_size='17sp'
+                font_size=sp(17)
             )
             btn.bind(on_release=lambda btn, p=product_name: self.select_product(p, dropdown))
             dropdown.add_widget(btn)
@@ -2629,7 +2630,7 @@ class SalesAnalysisScreen(BaseScreen):
 
     def load_analysis(self, instance):
         self.analysis_list.clear_widgets()
-        self._table_w = get_table_width()
+        self._table_w = dp(1150)
         self.analysis_container.width = self._table_w
         
         date_from, error = Validators.validate_date(self.date_from_input.text)
@@ -2693,9 +2694,9 @@ class SalesAnalysisScreen(BaseScreen):
             empty_label = Label(
                 text='Нет данных для выбранного периода',
                 size_hint_y=None,
-                height=72,
+                height=dp(72),
                 color=COLORS['MEDIUM_GREY'],
-                font_size='21sp',
+                font_size=sp(21),
                 bold=True,
                 halign='center'
             )
@@ -2705,9 +2706,9 @@ class SalesAnalysisScreen(BaseScreen):
             hint_label = Label(
                 text='Измените период или добавьте заказы',
                 size_hint_y=None,
-                height=48,
+                height=dp(48),
                 color=COLORS['LIGHT_GREY'],
-                font_size='16sp',
+                font_size=sp(16),
                 halign='center',
                 italic=True
             )
@@ -2732,9 +2733,9 @@ class SalesAnalysisScreen(BaseScreen):
                 card = BoxLayout(
                     orientation='horizontal',
                     size_hint_y=None,
-                    height=66,
-                    padding=[13, 10],
-                    spacing=8,
+                    height=dp(66),
+                    padding=[dp(13), dp(10)],
+                    spacing=dp(8),
                     size_hint_x=None,
                     width=self._table_w
                 )
@@ -2756,13 +2757,13 @@ class SalesAnalysisScreen(BaseScreen):
                     (day_date_str, 0.14, COLORS['DARK_TEXT']),
                     (product_name, 0.24, COLORS['DARK_BLUE']),
                     (f"{qty:.1f} кг", 0.14, COLORS['AMBER']),
-                    (f"{daily_sum:,.0f} ₽".replace(",", " "), 0.16, COLORS['GREEN']),
-                    (f"{profit_calc:,.0f} ₽".replace(",", " "), 0.16, COLORS['PURPLE']),
-                    (f"{expense_calc:,.0f} ₽".replace(",", " "), 0.16, COLORS['ORANGE'])
+                    (f"{daily_sum:,.0f} ₽".replace(",", "  "), 0.16, COLORS['GREEN']),
+                    (f"{profit_calc:,.0f} ₽".replace(",", "  "), 0.16, COLORS['PURPLE']),
+                    (f"{expense_calc:,.0f} ₽".replace(",", "  "), 0.16, COLORS['ORANGE'])
                 ]:
                     label = Label(
                         text=text,
-                        font_size='17sp',
+                        font_size=sp(17),
                         bold=(width_ratio > 0.15),
                         color=color,
                         size_hint_x=width_ratio,
@@ -2790,9 +2791,9 @@ class SalesAnalysisScreen(BaseScreen):
         total_card = BoxLayout(
             orientation='horizontal',
             size_hint_y=None,
-            height=70,
-            padding=[13, 10],
-            spacing=8,
+            height=dp(70),
+            padding=[dp(13), dp(10)],
+            spacing=dp(8),
             size_hint_x=None,
             width=self._table_w
         )
@@ -2813,15 +2814,15 @@ class SalesAnalysisScreen(BaseScreen):
             ("ИТОГО", 0.14, COLORS['DARK_BLUE']),
             ("", 0.24, COLORS['DARK_TEXT']),
             (f"{total_qty:.1f} кг", 0.14, COLORS['AMBER']),
-            (f"{total_sum:,.0f} ₽".replace(",", " "), 0.16, COLORS['GREEN']),
-            (f"{total_profit:,.0f} ₽".replace(",", " "), 0.16, COLORS['PURPLE']),
-            (f"{total_expense:,.0f} ₽".replace(",", " "), 0.16, COLORS['ORANGE'])
+            (f"{total_sum:,.0f} ₽".replace(",", "  "), 0.16, COLORS['GREEN']),
+            (f"{total_profit:,.0f} ₽".replace(",", "  "), 0.16, COLORS['PURPLE']),
+            (f"{total_expense:,.0f} ₽".replace(",", "  "), 0.16, COLORS['ORANGE'])
         ]
         
         for text, width_ratio, color in total_items:
             label = Label(
                 text=text,
-                font_size='18sp',
+                font_size=sp(18),
                 bold=True,
                 color=color,
                 size_hint_x=width_ratio,
@@ -2839,18 +2840,18 @@ class SalesAnalysisScreen(BaseScreen):
 class OrderHistoryScreen(BaseScreen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self._table_w = get_table_width()
+        self._table_w = dp(1150)
         self.build_ui()
-
+    
     def build_ui(self):
-        self._table_w = get_table_width()
-        layout = BoxLayout(orientation='vertical', padding=[12, 12, 12, 16], spacing=8)
+        self._table_w = dp(1150)
+        layout = BoxLayout(orientation='vertical', padding=[dp(12), dp(12), dp(12), dp(16)], spacing=dp(8))
         layout.add_widget(UIComponents.create_back_button('profile'))
         
         title = Label(
             text='История заказов',
             size_hint_y=0.07,
-            font_size='25sp',
+            font_size=sp(25),
             bold=True,
             color=COLORS['PINK'],
             halign='center'
@@ -2859,7 +2860,7 @@ class OrderHistoryScreen(BaseScreen):
         layout.add_widget(title)
 
         scroll = ScrollView(size_hint_y=0.22)
-        self.history_list = GridLayout(cols=1, spacing=10, size_hint_y=None)
+        self.history_list = GridLayout(cols=1, spacing=dp(10), size_hint_y=None)
         self.history_list.bind(minimum_height=self.history_list.setter('height'))
         scroll.add_widget(self.history_list)
         layout.add_widget(scroll)
@@ -2867,7 +2868,7 @@ class OrderHistoryScreen(BaseScreen):
         stats_title = Label(
             text='Дневная статистика (свайп влево/вправо — все столбцы)',
             size_hint_y=0.05,
-            font_size='18sp',
+            font_size=sp(18),
             bold=True,
             color=COLORS['DARK_BLUE'],
             halign='center'
@@ -2879,7 +2880,7 @@ class OrderHistoryScreen(BaseScreen):
             size_hint_y=0.58,
             do_scroll_x=True,
             do_scroll_y=True,
-            bar_width=10,
+            bar_width=dp(10),
             scroll_type=['bars', 'content'],
             bar_color=COLORS['DARK_BLUE'][:3] + (0.85,),
             bar_inactive_color=COLORS['LIGHT_GREY'][:3] + (0.65,),
@@ -2887,7 +2888,7 @@ class OrderHistoryScreen(BaseScreen):
         self.stats_scroll = stats_scroll
         w = self._table_w
         self.stats_container = BoxLayout(orientation='vertical', size_hint_x=None, width=w)
-        self.stats_list = GridLayout(cols=1, spacing=7, size_hint_y=None, size_hint_x=None, width=w)
+        self.stats_list = GridLayout(cols=1, spacing=dp(7), size_hint_y=None, size_hint_x=None, width=w)
         self.stats_list.bind(minimum_height=self.stats_list.setter('height'))
         self.stats_container.add_widget(self.stats_list)
         stats_scroll.add_widget(self.stats_container)
@@ -2908,9 +2909,9 @@ class OrderHistoryScreen(BaseScreen):
             empty_label = Label(
                 text='Нет завершенных заказов',
                 size_hint_y=None,
-                height=60,
+                height=dp(60),
                 color=COLORS['MEDIUM_GREY'],
-                font_size='21sp',
+                font_size=sp(21),
                 bold=True,
                 halign='center'
             )
@@ -2922,34 +2923,34 @@ class OrderHistoryScreen(BaseScreen):
             card = BoxLayout(
                 orientation='vertical',
                 size_hint_y=None,
-                height=108,
-                padding=[12, 6],
-                spacing=3
+                height=dp(108),
+                padding=[dp(12), dp(6)],
+                spacing=dp(3)
             )
             
             num_label = Label(
                 text=f"Заказ №{order['number']} от {order['date']}",
-                font_size='17sp',
+                font_size=sp(17),
                 bold=True,
                 color=COLORS['DARK_TEXT'],
                 size_hint_y=None,
-                height=30
+                height=dp(30)
             )
             
             items_label = Label(
                 text=f"Товаров: {len(order['items'])} | Вес: {sum(i['quantity'] for i in order['items']):.1f} кг",
-                font_size='15sp',
+                font_size=sp(15),
                 color=COLORS['DARK_TEXT'],
                 size_hint_y=None,
-                height=26
+                height=dp(26)
             )
             
             total_label = Label(
                 text=f"Итого: {order['total']:.2f} ₽ (доставка: {order['delivery_cost']} ₽)",
-                font_size='16sp',
+                font_size=sp(16),
                 color=COLORS['GREEN'],
                 size_hint_y=None,
-                height=28
+                height=dp(28)
             )
             
             card.add_widget(num_label)
@@ -2960,7 +2961,7 @@ class OrderHistoryScreen(BaseScreen):
     def load_daily_stats(self):
         """Загружает дневную статистику из профиля с КОРРЕКТНЫМ расчётом суммы доставки"""
         self.stats_list.clear_widgets()
-        self._table_w = get_table_width()
+        self._table_w = dp(1150)
         self.stats_container.width = self._table_w
         
         profile_data = self.get_profile_data()
@@ -2978,9 +2979,9 @@ class OrderHistoryScreen(BaseScreen):
         header_card = BoxLayout(
             orientation='horizontal',
             size_hint_y=None,
-            height=50,
-            padding=[9, 0],
-            spacing=6,
+            height=dp(50),
+            padding=[dp(9), 0],
+            spacing=dp(6),
             size_hint_x=None,
             width=self._table_w
         )
@@ -2998,7 +2999,7 @@ class OrderHistoryScreen(BaseScreen):
         for text, width_ratio in header_labels:
             lbl = Label(
                 text=text,
-                font_size='16sp',
+                font_size=sp(16),
                 bold=True,
                 color=(1, 1, 1, 1),
                 size_hint_x=width_ratio,
@@ -3014,9 +3015,9 @@ class OrderHistoryScreen(BaseScreen):
             card = BoxLayout(
                 orientation='horizontal',
                 size_hint_y=None,
-                height=60,
-                padding=[9, 0],
-                spacing=6,
+                height=dp(60),
+                padding=[dp(9), 0],
+                spacing=dp(6),
                 size_hint_x=None,
                 width=self._table_w
             )
@@ -3036,7 +3037,7 @@ class OrderHistoryScreen(BaseScreen):
             
             date_label = Label(
                 text=date_key,
-                font_size='16sp',
+                font_size=sp(16),
                 bold=True,
                 color=COLORS['DARK_TEXT'],
                 size_hint_x=0.18,
@@ -3047,7 +3048,7 @@ class OrderHistoryScreen(BaseScreen):
             
             orders_label = Label(
                 text=str(data["orders_count"]),
-                font_size='17sp',
+                font_size=sp(17),
                 bold=True,
                 color=COLORS['DARK_BLUE'],
                 size_hint_x=0.18,
@@ -3058,7 +3059,7 @@ class OrderHistoryScreen(BaseScreen):
             
             delivery_label = Label(
                 text=str(data["delivery_count"]),
-                font_size='17sp',
+                font_size=sp(17),
                 bold=True,
                 color=COLORS['AMBER'],
                 size_hint_x=0.18,
@@ -3068,8 +3069,8 @@ class OrderHistoryScreen(BaseScreen):
             delivery_label.bind(size=delivery_label.setter('text_size'))
             
             sum_day_label = Label(
-                text=f"{int(data['total_revenue']):,}".replace(",", " "),
-                font_size='17sp',
+                text=f"{int(data['total_revenue']):,}".replace(",", "  "),
+                font_size=sp(17),
                 bold=True,
                 color=COLORS['GREEN'],
                 size_hint_x=0.18,
@@ -3080,8 +3081,8 @@ class OrderHistoryScreen(BaseScreen):
             
             # ИСПРАВЛЕНО: Сумма доставки = ТОЛЬКО сумма стоимостей доставки
             delivery_sum_label = Label(
-                text=f"{int(data['delivery_sum']):,}".replace(",", " "),
-                font_size='17sp',
+                text=f"{int(data['delivery_sum']):,}".replace(",", "  "),
+                font_size=sp(17),
                 bold=True,
                 color=COLORS['ORANGE'],
                 size_hint_x=0.18,
@@ -3091,8 +3092,8 @@ class OrderHistoryScreen(BaseScreen):
             delivery_sum_label.bind(size=delivery_sum_label.setter('text_size'))
             
             revenue_label = Label(
-                text=f"{int(data['total_revenue'] - data['delivery_sum']):,}".replace(",", " "),
-                font_size='17sp',
+                text=f"{int(data['total_revenue'] - data['delivery_sum']):,}".replace(",", "  "),
+                font_size=sp(17),
                 bold=True,
                 color=COLORS['PURPLE'],
                 size_hint_x=0.18,
@@ -3116,15 +3117,15 @@ class StockHistoryScreen(BaseScreen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.build_ui()
-
+    
     def build_ui(self):
-        layout = BoxLayout(orientation='vertical', padding=12, spacing=12)
+        layout = BoxLayout(orientation='vertical', padding=dp(12), spacing=dp(12))
         layout.add_widget(UIComponents.create_back_button('warehouse', 'Назад'))
         
         title = Label(
             text='История операций со складом',
             size_hint_y=0.08,
-            font_size='23sp',
+            font_size=sp(23),
             bold=True,
             color=COLORS['TEAL'],
             halign='center'
@@ -3135,14 +3136,14 @@ class StockHistoryScreen(BaseScreen):
         scroll = ScrollView(
             size_hint_y=0.85,
             do_scroll_x=True,
-            bar_width=13,
+            bar_width=dp(13),
             scroll_type=['bars', 'content'],
             bar_color=COLORS['DARK_BLUE'][:3] + (0.85,),
             bar_inactive_color=COLORS['LIGHT_GREY'][:3] + (0.65,)
         )
         
-        self.history_container = BoxLayout(orientation='vertical', size_hint_x=None, width=1100)
-        self.history_list = GridLayout(cols=1, spacing=9, size_hint_y=None, size_hint_x=None, width=1100)
+        self.history_container = BoxLayout(orientation='vertical', size_hint_x=None, width=dp(1100))
+        self.history_list = GridLayout(cols=1, spacing=dp(9), size_hint_y=None, size_hint_x=None, width=dp(1100))
         self.history_list.bind(minimum_height=self.history_list.setter('height'))
         self.history_container.add_widget(self.history_list)
         scroll.add_widget(self.history_container)
@@ -3155,7 +3156,7 @@ class StockHistoryScreen(BaseScreen):
 
     def load_history(self):
         self.history_list.clear_widgets()
-        self.history_container.width = 1100
+        self.history_container.width = dp(1100)
         
         profile_data = self.get_profile_data()
         stock_data = profile_data.get("stock", {})
@@ -3164,9 +3165,9 @@ class StockHistoryScreen(BaseScreen):
             empty_label = Label(
                 text='Нет истории операций со складом.',
                 size_hint_y=None,
-                height=60,
+                height=dp(60),
                 color=COLORS['MEDIUM_GREY'],
-                font_size='21sp',
+                font_size=sp(21),
                 bold=True,
                 halign='center'
             )
@@ -3179,7 +3180,7 @@ class StockHistoryScreen(BaseScreen):
             history = data.get("history", [])
             for op in history:
                 op_dict = {
-                    "date": op.get("date", ""),
+                    "date": op.get("date", " "),
                     "product": product_name,
                     "operation": op.get("operation", "Неизвестно"),
                     "quantity": op.get("quantity", 0.0),
@@ -3201,32 +3202,32 @@ class StockHistoryScreen(BaseScreen):
             ("Остаток после", 0.12)
         ]
         
-        header_card = UIComponents.create_table_header(header_labels, width=1100)
+        header_card = UIComponents.create_table_header(header_labels, width=dp(1100))
         self.history_list.add_widget(header_card)
         
         for op in all_operations[:50]:
             card = BoxLayout(
                 orientation='horizontal',
                 size_hint_y=None,
-                height=57,
-                padding=[9, 6],
-                spacing=6,
+                height=dp(57),
+                padding=[dp(9), dp(6)],
+                spacing=dp(6),
                 size_hint_x=None,
-                width=1100
+                width=dp(1100)
             )
             
             for text, width_ratio in [
                 (op["date"], 0.17),
                 (op["product"], 0.25),
                 (op["operation"].capitalize(), 0.17),
-                (f"{op['quantity']:.2f}", 0.12),
-                (f"{op['price_per_kg']:.2f}", 0.12),
-                (f"{op['total_amount']:.2f}", 0.12),
-                (f"{op['balance_after']:.2f}", 0.12)
+                (f"{op['quantity']:.2f} ", 0.12),
+                (f"{op['price_per_kg']:.2f} ", 0.12),
+                (f"{op['total_amount']:.2f} ", 0.12),
+                (f"{op['balance_after']:.2f} ", 0.12)
             ]:
                 label = Label(
                     text=text,
-                    font_size='15sp',
+                    font_size=sp(15),
                     color=COLORS['DARK_TEXT'],
                     size_hint_x=width_ratio,
                     halign='center'
@@ -3245,7 +3246,6 @@ class OrderApp(App):
         self.current_profile: Optional[str] = None
         self.profile_data: Dict = {}
         self.product_to_edit: Optional[Dict] = None
-        
         # Инициализация модулей
         self.data_manager = DataManager()
         self.business_logic = BusinessLogic()
@@ -3266,24 +3266,11 @@ class OrderApp(App):
         Window.clearcolor = COLORS['LIGHT_BG']
         return sm
 
-    try:
-        from kivy.app import App
-        app = App.get_running_app()
-        if hasattr(app, 'data_manager') and app.data_manager.profiles_file:
-            profiles_file = app.data_manager.profiles_file
-            if os.path.exists(profiles_file) and os.path.getsize(profiles_file) == 0:
-                os.remove(profiles_file)
-    except Exception as e:
-        print(f"⚠ Ошибка очистки файлов: {e}")
-        
     def request_android_permissions(self):
         try:
             import importlib
             if importlib.util.find_spec("android") is not None:
-                android_module = __import__('android.permissions',
-                                           fromlist=['request_permissions', 'Permission'])
-                request_permissions = android_module.request_permissions
-                Permission = android_module.Permission
+                from android.permissions import request_permissions, Permission
                 request_permissions([
                     Permission.READ_EXTERNAL_STORAGE,
                     Permission.WRITE_EXTERNAL_STORAGE
